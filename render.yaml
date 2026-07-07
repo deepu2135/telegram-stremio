@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: tg-stremio-addon
+    env: docker
+    dockerContext: .
+    dockerfilePath: Dockerfile
+    plan: free
+    # Render automatically sets the PORT environment variable
+    # We will let the Dockerfile command run dynamically
+    envVars:
+      - key: API_ID
+        sync: false
+        placeholder: "Your Telegram API ID (integer)"
+      - key: API_HASH
+        sync: false
+        placeholder: "Your Telegram API Hash"
+      - key: BOT_TOKEN
+        sync: false
+        placeholder: "Your Telegram Bot Token (from BotFather)"
+      - key: TELEGRAM_CHANNEL_ID
+        sync: false
+        placeholder: "Your private channel ID (starts with -100)"
+      - key: API_KEY
+        sync: false
+        placeholder: "Create a secure key to lock your addon (optional)"
+      - key: USER_SESSION_STRING
+        sync: false
+        placeholder: "Optional Pyrogram Session String (recommended for files > 2GB)"
+      - key: ADDON_URL
+        sync: false
+        placeholder: "https://your-addon-name.onrender.com"
+      - key: LOG_CHANNEL_ID
+        sync: false
+        placeholder: "Optional Log Channel ID for streaming history (starts with -100)"
+      - key: TIMEZONE
+        sync: false
+        placeholder: "Optional timezone (e.g. Asia/Kolkata, UTC+05:30) (default: UTC)"

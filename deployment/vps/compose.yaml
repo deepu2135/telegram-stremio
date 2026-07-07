@@ -1,0 +1,37 @@
+services:
+  stremio-telegram-debrid:
+    container_name: stremio-telegram-debrid
+    image: ghcr.io/author/stremio-telegram-debrid:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PORT=7860
+    profiles:
+      - stremio-telegram-debrid
+      - debrid
+      - addon
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.stremio-telegram-debrid.rule=Host('stremio-tg.${DOMAIN}')"
+      - "traefik.http.routers.stremio-telegram-debrid.entrypoints=websecure"
+      - "traefik.http.routers.stremio-telegram-debrid.tls.certresolver=letsencrypt"
+      - "traefik.http.services.stremio-telegram-debrid.loadbalancer.server.port=7860"
+
+  stremio-telegram-debrid-updater:
+    container_name: stremio-telegram-debrid-updater
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: stremio-telegram-debrid --cleanup --interval 300
+    profiles:
+      - stremio-telegram-debrid
+      - debrid
+      - addon
+
+networks:
+  traefik:
+    external: true

@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  addon:
+    build: .
+    container_name: tg-stremio-addon
+    ports:
+      - "7860:7860"
+    env_file:
+      - .env
+    restart: unless-stopped
