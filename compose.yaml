@@ -1,7 +1,7 @@
 services:
   stremio-telegram-debrid:
     container_name: stremio-telegram-debrid
-    image: ghcr.io/author/stremio-telegram-debrid:latest
+    image: ghcr.io/sunilroy-dev/stremio-telegram-debrid:latest
     restart: unless-stopped
     env_file:
       - .env
