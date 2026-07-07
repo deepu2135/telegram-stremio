@@ -47,8 +47,8 @@ logger = logging.getLogger("stremio_addon")
 async def lifespan(app: FastAPI):
     try:
         print("\n" + "=" * 60)
-        print("   TELEGRAM ADDON BY SUNILROY-DEV")
-        print("   GitHub: https://github.com/SunilRoy-dev/stremio-telegram-debrid")
+        print("   TELEGRAM ADDON BY AUTHOR")
+        print("   GitHub: https://github.com/stremio-telegram-debrid/stremio-telegram-debrid")
         print("   For educational and personal testing only.")
         print("=" * 60 + "\n")
         
@@ -118,7 +118,7 @@ def get_manifest(api_key: str = ""):
     return {
         "id": "community.telegram.stremio.addon",
         "version": "1.0.0",
-        "name": "Telegram Addon by SunilRoy-dev",
+        "name": "Telegram Addon by Author",
         "description": "Personal Telegram streaming proxy. For educational & personal testing only. Do not use for unauthorized hosting of copyrighted media.",
         "logo": "https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg",
         "resources": ["meta", "stream", "subtitles"],
@@ -163,7 +163,7 @@ async def landing(request: Request):
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Telegram Addon by SunilRoy-dev</title>
+            <title>Telegram Addon by Author</title>
             <meta name="description" content="Stream private Telegram files directly inside Stremio. Secure, lightweight, and ranges-supported proxy.">
             <link rel="preconnect" href="https://fonts.googleapis.com">
             <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -497,7 +497,7 @@ async def landing(request: Request):
                         Stremio Telegram Addon
                     </div>
                     <div class="header-actions">
-                        <a href="https://github.com/SunilRoy-dev/stremio-telegram-debrid" target="_blank" class="star-badge">
+                        <a href="https://github.com/stremio-telegram-debrid/stremio-telegram-debrid" target="_blank" class="star-badge">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="margin-right: 4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                             Star on GitHub
                         </a>
@@ -592,7 +592,7 @@ async def landing(request: Request):
                 </div>
                 
                 <div class="footer">
-                    Developed by <a href="https://github.com/SunilRoy-dev" target="_blank">SunilRoy-dev</a> | Licensed under MIT-NC
+                    Developed by <a href="https://github.com/Author" target="_blank">Author</a> | Licensed under MIT-NC
                     <em>For educational and personal testing only. Do not use for unauthorized hosting or distribution of copyrighted media.</em>
                 </div>
             </div>
@@ -1270,7 +1270,16 @@ async def stream_handler(
                             })
                             
                 valid_streams.sort(key=lambda x: (x.get("_quality", 0), x.get("_size", 0)), reverse=True)
+                
+                seen_sizes = set()
                 for s in valid_streams:
+                    size = s.get("_size")
+                    # If it's identical size to a previously added stream (which is higher or equal quality due to sort), skip it
+                    if size and size in seen_sizes:
+                        continue
+                    if size:
+                        seen_sizes.add(size)
+                        
                     s.pop("_quality", None)
                     s.pop("_size", None)
                     streams.append(s)

@@ -12,8 +12,8 @@ pinned: false
 ![Telegram Stremio Addon Banner](stremio_telegram_banner.png)
 
 [![License](https://img.shields.io/badge/License-MIT--NC-blue?style=for-the-badge)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/SunilRoy-dev/stremio-telegram-debrid?style=for-the-badge&logo=github)](https://github.com/SunilRoy-dev/stremio-telegram-debrid/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/SunilRoy-dev/stremio-telegram-debrid?style=for-the-badge)](https://github.com/SunilRoy-dev/stremio-telegram-debrid/network/members)
+[![GitHub Stars](https://img.shields.io/github/stars/stremio-telegram-debrid/stremio-telegram-debrid?style=for-the-badge&logo=github)](https://github.com/stremio-telegram-debrid/stremio-telegram-debrid/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/stremio-telegram-debrid/stremio-telegram-debrid?style=for-the-badge)](https://github.com/stremio-telegram-debrid/stremio-telegram-debrid/network/members)
 
 
 Stream video, audio, and subtitle files directly from your private Telegram storage channels inside Stremio. This addon serves as a high-speed on-the-fly streaming HTTP proxy (fully supporting Range Requests for instant seek/scrubbing) that integrates your private Telegram channel into your personal Stremio library.
@@ -50,10 +50,10 @@ Deploy your own instance of the Telegram Stremio Addon instantly using any of th
 | Platform | Deployment Type / Limitations | Deploy Button |
 | :--- | :--- | :--- |
 | **Hugging Face Spaces** | Free CPU Tier (Highly Recommended — Generous Bandwidth / Sleeps after 48h) | [Manual Setup Guide](#hugging-face-spaces-setup-guide) |
-| **Render** | Free Hobby Tier (5GB Bandwidth Limit & Auto-Sleeps) | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SunilRoy-dev/stremio-telegram-debrid) |
-| **Koyeb** | Free Edge Tier (Continuous — Requires Card Verification) | [![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/SunilRoy-dev/stremio-telegram-debrid&branch=main&name=stremio-telegram-debrid) |
-| **Railway** | Trial Tier (Limited Credits, approx. 500 hours/month) | [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/SunilRoy-dev/stremio-telegram-debrid) |
-| **Zeabur** | Trial Tier (Limited Credits) | [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/deploy?template=https://github.com/SunilRoy-dev/stremio-telegram-debrid) |
+| **Render** | Free Hobby Tier (5GB Bandwidth Limit & Auto-Sleeps) | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/stremio-telegram-debrid/stremio-telegram-debrid) |
+| **Koyeb** | Free Edge Tier (Continuous — Requires Card Verification) | [![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/stremio-telegram-debrid/stremio-telegram-debrid&branch=main&name=stremio-telegram-debrid) |
+| **Railway** | Trial Tier (Limited Credits, approx. 500 hours/month) | [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/stremio-telegram-debrid/stremio-telegram-debrid) |
+| **Zeabur** | Trial Tier (Limited Credits) | [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/deploy?template=https://github.com/stremio-telegram-debrid/stremio-telegram-debrid) |
 
 *Please read the **[Deployment Platform Specs and Limitations](#deployment-platform-specs-and-limitations)** section below before selecting a hosting provider.*
 
@@ -370,7 +370,7 @@ Once the status bar at the top turns green and says **Running**, your addon is o
 ### Option A: Python Setup
 1. Clone the repository:
    ```bash
-   git clone https://github.com/SunilRoy-dev/stremio-telegram-debrid.git
+   git clone https://github.com/stremio-telegram-debrid/stremio-telegram-debrid.git
    cd stremio-telegram-debrid
    ```
 2. Create a virtual environment and activate it:
@@ -406,7 +406,7 @@ If you self-host your addons using [Viren070/docker-compose-template](https://gi
 On your VPS, navigate to your cloned `docker-compose-template` directory (typically `/opt/docker`) and run the following command to create the directory and download our pre-configured `compose.yaml`:
 ```bash
 mkdir -p apps/stremio-telegram-debrid
-curl -s https://raw.githubusercontent.com/SunilRoy-dev/stremio-telegram-debrid/main/deployment/vps/compose.yaml -o apps/stremio-telegram-debrid/compose.yaml
+curl -s https://raw.githubusercontent.com/stremio-telegram-debrid/stremio-telegram-debrid/main/deployment/vps/compose.yaml -o apps/stremio-telegram-debrid/compose.yaml
 ```
 
 Or you can create the file `apps/stremio-telegram-debrid/compose.yaml` manually with the following configuration:
@@ -414,7 +414,7 @@ Or you can create the file `apps/stremio-telegram-debrid/compose.yaml` manually 
 services:
   stremio-telegram-debrid:
     container_name: stremio-telegram-debrid
-    image: ghcr.io/sunilroy-dev/stremio-telegram-debrid:latest
+    image: ghcr.io/author/stremio-telegram-debrid:latest
     restart: unless-stopped
     env_file:
       - .env
@@ -457,7 +457,7 @@ networks:
 #### Step 2: Configure the App Environment Variables
 Create a file named `apps/stremio-telegram-debrid/.env`. You can download our sample `.env.example` template directly by running:
 ```bash
-curl -s https://raw.githubusercontent.com/SunilRoy-dev/stremio-telegram-debrid/main/.env.example -o apps/stremio-telegram-debrid/.env
+curl -s https://raw.githubusercontent.com/stremio-telegram-debrid/stremio-telegram-debrid/main/.env.example -o apps/stremio-telegram-debrid/.env
 ```
 Or create it manually and configure your credentials:
 ```env
@@ -527,7 +527,7 @@ This project is made possible thanks to the following open-source frameworks, li
 ## License, Attribution and Stars
 
 ### MIT Non-Commercial License (MIT-NC)
-This project is licensed under a custom **MIT Non-Commercial License (MIT-NC)** - see the [LICENSE](LICENSE) file for details. Copyright (c) 2026 SunilRoy.
+This project is licensed under a custom **MIT Non-Commercial License (MIT-NC)** - see the [LICENSE](LICENSE) file for details. Copyright (c) 2026 Author.
 
 Sublicensing, commercial sale, renting, or financial/monetary exploitation of this software (including its source code and derivatives) is **strictly prohibited**.
 
@@ -538,7 +538,7 @@ GitHub, Render, Koyeb, and other major platforms take copyright violations very 
 
 ### Attribution Requirement
 If you fork, copy, modify, or redistribute this project:
-1. You **must** keep the original credits back to [SunilRoy-dev](https://github.com/SunilRoy-dev).
+1. You **must** keep the original credits back to [Author](https://github.com/Author).
 2. Do **not** remove the developed-by credits or links from the web landing page footer, manifest metadata, or startup console banner.
 3. Please **star the repository** as a sign of appreciation.
 
@@ -547,6 +547,6 @@ If you fork, copy, modify, or redistribute this project:
 ## Educational Disclaimer
 
 > [!WARNING]
-> This software is created solely for **educational, personal backup, and research purposes**. The author (`SunilRoy`) does not condone, promote, or encourage copyright infringement or the unauthorized streaming/sharing of copyrighted media. 
+> This software is created solely for **educational, personal backup, and research purposes**. The author (`Author`) does not condone, promote, or encourage copyright infringement or the unauthorized streaming/sharing of copyrighted media. 
 > - Users are solely responsible for the media files they host in their private Telegram channels.
 > - By deploying or running this software, you agree that you are using it in compliance with all local copyright laws and terms of service.
