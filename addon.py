@@ -47,8 +47,8 @@ logger = logging.getLogger("stremio_addon")
 async def lifespan(app: FastAPI):
     try:
         print("\n" + "=" * 60)
-        print("   TELEGRAM ADDON BY AUTHOR")
-        print("   GitHub: https://github.com/stremio-telegram-debrid/stremio-telegram-debrid")
+        print("   TELEGRAM ADDON")
+        
         print("   For educational and personal testing only.")
         print("=" * 60 + "\n")
         
@@ -118,7 +118,7 @@ def get_manifest(api_key: str = ""):
     return {
         "id": "community.telegram.stremio.addon",
         "version": "1.0.0",
-        "name": "Telegram Addon by Author",
+        "name": "Telegram",
         "description": "Personal Telegram streaming proxy. For educational & personal testing only. Do not use for unauthorized hosting of copyrighted media.",
         "logo": "https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg",
         "resources": ["meta", "stream", "subtitles"],
@@ -163,7 +163,7 @@ async def landing(request: Request):
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Telegram Addon by Author</title>
+            <title>Telegram</title>
             <meta name="description" content="Stream private Telegram files directly inside Stremio. Secure, lightweight, and ranges-supported proxy.">
             <link rel="preconnect" href="https://fonts.googleapis.com">
             <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -592,7 +592,7 @@ async def landing(request: Request):
                 </div>
                 
                 <div class="footer">
-                    Developed by <a href="https://github.com/Author" target="_blank">Author</a> | Licensed under MIT-NC
+                    Licensed under MIT-NC
                     <em>For educational and personal testing only. Do not use for unauthorized hosting or distribution of copyrighted media.</em>
                 </div>
             </div>
