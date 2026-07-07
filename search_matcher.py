@@ -27,7 +27,7 @@ EPISODE_ONLY_PATTERN = re.compile(
     re.IGNORECASE
 )
 
-YEAR_PATTERN = re.compile(r'\b(19|20)\d{2}\b')
+YEAR_PATTERN = re.compile(r'\b(?:19|20)\d{2}\b')
 NOISE = re.compile(r'[._\-\[\]()\'",!?:]')
 MULTI_SPACE = re.compile(r'\s+')
 SIZE_SUFFIX = re.compile(r'\.(mkv|mp4|avi|mov|wmv|m4v|ts|m2ts)$', re.IGNORECASE)
@@ -251,6 +251,6 @@ def quality_tier(quality: str) -> int:
     if quality == "720P": return 4
     if quality == "480P": return 3
     if quality == "360P": return 2
-    if quality == "CAM": return 1
-    if quality == "SCR": return 1
+    if quality == "CAM": return -1
+    if quality == "SCR": return -1
     return 0

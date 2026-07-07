@@ -1269,7 +1269,7 @@ async def stream_handler(
                                 "_size": file_size
                             })
                             
-                valid_streams.sort(key=lambda x: (x.get("_quality", 0), x.get("_size", 0)), reverse=True)
+                valid_streams.sort(key=lambda x: (x.get("_size", 0), x.get("_quality", 0)), reverse=True)
                 for s in valid_streams:
                     s.pop("_quality", None)
                     s.pop("_size", None)
