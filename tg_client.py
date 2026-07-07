@@ -283,7 +283,8 @@ class TelegramClientManager:
                 api_hash=Config.API_HASH,
                 session_string=Config.USER_SESSION_STRING,
                 in_memory=True,
-                no_updates=True
+                no_updates=True,
+                max_concurrent_transmissions=10
             )
         elif Config.BOT_TOKEN:
             logger.info("Initializing Bot Client...")
@@ -293,7 +294,8 @@ class TelegramClientManager:
                 api_hash=Config.API_HASH,
                 bot_token=Config.BOT_TOKEN,
                 in_memory=True,
-                no_updates=True
+                no_updates=True,
+                max_concurrent_transmissions=10
             )
         else:
             raise ValueError("Neither USER_SESSION_STRING nor BOT_TOKEN is configured!")

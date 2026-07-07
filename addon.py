@@ -68,6 +68,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def disable_proxy_buffering(request: Request, call_next):
+    """Disable nginx/reverse-proxy buffering for streaming endpoints.
+    HF Spaces uses nginx which buffers responses by default, causing
+    multi-minute delays before the video player receives any data."""
+    response = await call_next(request)
+    if "/stream/" in request.url.path:
+        response.headers["X-Accel-Buffering"] = "no"
+    return response
+
 def group_tg_messages(messages: list) -> list:
     grouped = {}
     standalone = []
@@ -1439,7 +1449,13 @@ async def tg_stream_proxy(
             chat_id_val = int(chat_id)
         except ValueError:
             chat_id_val = chat_id
-        msg = await tg_client_manager.get_message(message_id, chat_id=chat_id_val)
+        # Always fetch a FRESH message to get a valid file_reference for streaming.
+        # Cached messages have stale file_references that cause Telegram API errors.
+        try:
+            msg = await tg_client_manager.client.get_messages(chat_id=chat_id_val, message_ids=message_id)
+        except Exception:
+            # Fallback to cached version if direct fetch fails
+            msg = await tg_client_manager.get_message(message_id, chat_id=chat_id_val)
     except Exception as e:
         logger.error(f"Proxy failed to fetch message: {e}")
         raise HTTPException(status_code=404, detail="Media file not found")
@@ -1479,14 +1495,20 @@ async def tg_stream_proxy(
     offset = start // chunk_size
     skip_bytes = start % chunk_size
     
+    status_code = 206 if range_header else 200
+    
     headers = {
-        "Content-Range": f"bytes {start}-{end}/{file_size}",
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
         "Content-Disposition": f'inline; filename="{filename}"',
+        "Connection": "keep-alive",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
     }
-    
-    status_code = 206 if range_header else 200
+    # Content-Range MUST only be sent with 206 Partial Content, not 200.
+    # Sending it on 200 confuses video players and causes playback failures.
+    if range_header:
+        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
     
     if request.method == "HEAD":
         logger.info(f"HEAD request for media '{filename}' (bytes {start}-{end}/{file_size}) - Status {status_code}")
@@ -1497,28 +1519,58 @@ async def tg_stream_proxy(
         )
         
     async def file_generator():
+        nonlocal msg
         bytes_sent = 0
         bytes_to_skip = skip_bytes
-        try:
-            async for chunk in tg_client_manager.client.stream_media(media, offset=offset):
-                if bytes_to_skip > 0:
-                    if bytes_to_skip < len(chunk):
-                        chunk = chunk[bytes_to_skip:]
-                        bytes_to_skip = 0
-                    else:
-                        bytes_to_skip -= len(chunk)
-                        continue
+        retries = 0
+        max_retries = 2
+        current_offset = offset
+        
+        while retries <= max_retries:
+            try:
+                async for chunk in tg_client_manager.client.stream_media(msg, offset=current_offset):
+                    if bytes_to_skip > 0:
+                        if bytes_to_skip < len(chunk):
+                            chunk = chunk[bytes_to_skip:]
+                            bytes_to_skip = 0
+                        else:
+                            bytes_to_skip -= len(chunk)
+                            continue
+                            
+                    if bytes_sent + len(chunk) > content_length:
+                        chunk = chunk[:content_length - bytes_sent]
                         
-                if bytes_sent + len(chunk) > content_length:
-                    chunk = chunk[:content_length - bytes_sent]
+                    yield chunk
+                    bytes_sent += len(chunk)
                     
-                yield chunk
-                bytes_sent += len(chunk)
-                
-                if bytes_sent >= content_length:
+                    if bytes_sent >= content_length:
+                        break
+                # Completed successfully
+                break
+            except asyncio.CancelledError:
+                logger.info(f"Stream cancelled by client for message {message_id}")
+                break
+            except Exception as e:
+                err_name = type(e).__name__
+                if "FileReferenceExpired" in err_name or "FILE_REFERENCE" in str(e).upper():
+                    retries += 1
+                    if retries <= max_retries:
+                        logger.warning(f"File reference expired for msg {message_id}, refreshing (retry {retries}/{max_retries})...")
+                        try:
+                            msg = await tg_client_manager.client.get_messages(chat_id=chat_id_val, message_ids=message_id)
+                            # Calculate new offset based on bytes already sent
+                            current_offset = (start + bytes_sent) // chunk_size
+                            bytes_to_skip = (start + bytes_sent) % chunk_size
+                            continue
+                        except Exception as re_err:
+                            logger.error(f"Failed to refresh message: {re_err}")
+                            break
+                    else:
+                        logger.error(f"Max retries exceeded for file reference on msg {message_id}")
+                        break
+                else:
+                    logger.error(f"Streaming error on message {message_id}: {e}")
                     break
-        except Exception as e:
-            logger.error(f"Streaming error on message {message_id}: {e}")
             
     logger.info(f"Streaming media '{filename}' (bytes {start}-{end}/{file_size}) - Status {status_code}")
     
@@ -1559,7 +1611,11 @@ async def tg_split_stream_proxy(
     
     for msg_id in msg_id_list:
         try:
-            msg = await tg_client_manager.get_message(msg_id, chat_id=chat_id_val)
+            # Fetch fresh message for valid file_reference
+            try:
+                msg = await tg_client_manager.client.get_messages(chat_id=chat_id_val, message_ids=msg_id)
+            except Exception:
+                msg = await tg_client_manager.get_message(msg_id, chat_id=chat_id_val)
             if not msg:
                 raise HTTPException(status_code=404, detail=f"Message {msg_id} not found")
             media = msg.video or msg.document or msg.audio
@@ -1567,12 +1623,15 @@ async def tg_split_stream_proxy(
                 raise HTTPException(status_code=400, detail=f"No media in message {msg_id}")
                 
             chunks_info.append({
+                "msg": msg,
                 "media": media,
                 "size": media.file_size,
                 "start_byte": total_size,
                 "end_byte": total_size + media.file_size - 1
             })
             total_size += media.file_size
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error fetching metadata for msg {msg_id}: {e}")
             raise HTTPException(status_code=500, detail="Failed resolving split file metadata")
@@ -1594,14 +1653,18 @@ async def tg_split_stream_proxy(
     content_length = end - start + 1
     mime_type = chunks_info[0]["media"].mime_type or "video/mp4"
     
+    status_code = 206 if range_header else 200
+    
     headers = {
-        "Content-Range": f"bytes {start}-{end}/{total_size}",
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
         "Content-Disposition": f'inline; filename="{filename}"',
+        "Connection": "keep-alive",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
     }
-    
-    status_code = 206 if range_header else 200
+    if range_header:
+        headers["Content-Range"] = f"bytes {start}-{end}/{total_size}"
     
     if request.method == "HEAD":
         return Response(
@@ -1633,7 +1696,7 @@ async def tg_split_stream_proxy(
             bytes_to_skip = skip_bytes
             
             try:
-                async for block in tg_client_manager.client.stream_media(chunk["media"], offset=offset_blocks):
+                async for block in tg_client_manager.client.stream_media(chunk["msg"], offset=offset_blocks):
                     if bytes_to_skip > 0:
                         if bytes_to_skip < len(block):
                             block = block[bytes_to_skip:]
@@ -1694,7 +1757,11 @@ async def tg_zip_stream_proxy(
         
     messages = []
     for msg_id in msg_id_list:
-        msg = await tg_client_manager.get_message(msg_id, chat_id=chat_id_val)
+        # Fetch fresh messages for valid file_reference
+        try:
+            msg = await tg_client_manager.client.get_messages(chat_id=chat_id_val, message_ids=msg_id)
+        except Exception:
+            msg = await tg_client_manager.get_message(msg_id, chat_id=chat_id_val)
         if msg:
             messages.append(msg)
             
@@ -1737,14 +1804,18 @@ async def tg_zip_stream_proxy(
             
     content_length = end - start + 1
     
+    status_code = 206 if range_header else 200
+    
     headers = {
-        "Content-Range": f"bytes {start}-{end}/{file_size}",
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
         "Content-Disposition": f'inline; filename="{filename}"',
+        "Connection": "keep-alive",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
     }
-    
-    status_code = 206 if range_header else 200
+    if range_header:
+        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
     
     if request.method == "HEAD":
         return Response(
@@ -1842,4 +1913,4 @@ async def tg_zip_stream_proxy(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("addon:app", host="0.0.0.0", port=Config.PORT, reload=True)
+    uvicorn.run("addon:app", host="0.0.0.0", port=Config.PORT, reload=True, timeout_keep_alive=300)
