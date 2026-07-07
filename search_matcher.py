@@ -70,6 +70,13 @@ class TelegramSearchMatcher:
         eng_match = bool(normalized_english and normalized_english.strip() and normalized_english in normalized_combined)
         loc_match = bool(normalized_localized and normalized_localized.strip() and normalized_localized in normalized_combined)
         app_match = normalized_title in normalized_combined
+        
+        if not app_match:
+            # Fallback to word-by-word match since we don't have TMDB aliases
+            title_words = normalized_title.split()
+            combined_words = normalized_combined.split()
+            if title_words and all(w in combined_words for w in title_words):
+                app_match = True
 
         if not eng_match and not loc_match and not app_match:
             return 0
