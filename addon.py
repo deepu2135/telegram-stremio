@@ -125,6 +125,25 @@ def verify_api_key(request: Request):
 
 def get_manifest(api_key: str = ""):
     query_suffix = f"?api_key={api_key}" if api_key else ""
+    catalogs = []
+
+    # Browsable catalog for configured channel(s)
+    if Config.TELEGRAM_CHANNEL_ID:
+        catalogs.append({
+            "type": "movie",
+            "id": "telegram_channel",
+            "name": "Telegram Channel",
+            "extra": [{"name": "skip"}]
+        })
+
+    # Global search catalog (always available)
+    catalogs.append({
+        "type": "movie",
+        "id": "telegram_search",
+        "name": "Telegram Search",
+        "extra": [{"name": "search", "isRequired": True}, {"name": "skip"}],
+    })
+
     return {
         "id": "community.telegram.stremio.addon",
         "version": "1.0.0",
@@ -134,7 +153,7 @@ def get_manifest(api_key: str = ""):
         "resources": ["meta", "stream", "subtitles"],
         "types": ["movie", "series"],
         "idPrefixes": ["tgfile_", "tt"],
-        "catalogs": [],
+        "catalogs": catalogs,
         "behaviorHints": {
             "configurable": False,
             "configurationRequired": False
@@ -694,26 +713,54 @@ async def catalog_handler(
     extra: str = None,
     api_key: str = ""
 ):
-    if type not in ["movie", "series"]:
+    if type not in ["movie", "series", "other"]:
         return {"metas": []}
         
     query = ""
+    skip = 0
     if extra:
         params = urllib.parse.parse_qs(extra)
         if "search" in params:
             query = params["search"][0]
+        if "skip" in params:
+            try:
+                skip = int(params["skip"][0])
+            except ValueError:
+                pass
 
+    browse_limit = 500 if catalog_id == "telegram_channel" else 100
     try:
-        messages = await tg_client_manager.search_messages(query=query, limit=50)
+        messages = await tg_client_manager.search_messages(query=query, limit=browse_limit)
     except Exception as e:
         logger.error(f"Catalog search failed: {e}")
         return {"metas": []}
 
     grouped_items = group_tg_messages(messages)
+
+    # Sort grouped items by date (newest first)
+    def get_item_date(item):
+        if isinstance(item, tuple):
+            base_name, parts = item
+            return max((msg.date for msg in parts if msg.date), default=0)
+        else:
+            return item.date if item.date else 0
+
+    grouped_items.sort(key=get_item_date, reverse=True)
+
+    # Slice for pagination (50 items per page)
+    sliced_items = grouped_items[skip : skip + 50]
+
     metas = []
     logo_url = f"{Config.ADDON_URL}/stremio_telegram_logo.png" if getattr(Config, "ADDON_URL", None) else None
+
+    def get_poster_url(msg):
+        """Use video thumbnail as poster if available, otherwise fall back to logo."""
+        media = msg.video or msg.document or msg.audio
+        if media and getattr(media, 'thumbs', None):
+            return f"{Config.ADDON_URL}/poster/{msg.chat.id}/{msg.id}"
+        return logo_url
     
-    for item in grouped_items:
+    for item in sliced_items:
         if isinstance(item, tuple):
             base_name, parts = item
             total_size = sum((x.video or x.document or x.audio).file_size for x in parts if (x.video or x.document or x.audio))
@@ -735,7 +782,7 @@ async def catalog_handler(
                                 "type": type,
                                 "name": entry.filename,
                                 "description": f"💾 Telegram ZIP Entry\n📦 Size: {format_size(entry.file_size)}\n📂 ZIP Archive: {base_name}",
-                                "poster": logo_url,
+                                "poster": get_poster_url(first_msg),
                             })
                 except Exception as e:
                     logger.error(f"Error reading split ZIP archive: {e}")
@@ -747,7 +794,7 @@ async def catalog_handler(
                     "type": type,
                     "name": base_name,
                     "description": f"💾 Telegram File (Split Parts: {len(parts)})\n📦 Total Size: {format_size(total_size)}",
-                    "poster": logo_url,
+                    "poster": get_poster_url(first_msg),
                 })
         else:
             msg = item
@@ -770,7 +817,7 @@ async def catalog_handler(
                                 "type": type,
                                 "name": entry.filename,
                                 "description": f"💾 Telegram ZIP Entry\n📦 Size: {format_size(entry.file_size)}\n📂 ZIP Archive: {file_name}",
-                                "poster": logo_url,
+                                "poster": get_poster_url(msg),
                             })
                 except Exception as e:
                     logger.error(f"Error reading standalone ZIP archive: {e}")
@@ -782,7 +829,7 @@ async def catalog_handler(
                     "type": type,
                     "name": file_name,
                     "description": f"💾 Telegram File\n📦 Size: {format_size(file_size)}\n💬 {caption}" if caption else f"💾 Telegram File\n📦 Size: {format_size(file_size)}",
-                    "poster": logo_url,
+                    "poster": get_poster_url(msg),
                 })
             
     return {"metas": metas}
@@ -801,6 +848,41 @@ async def get_banner():
     if os.path.exists("stremio_telegram_banner.png"):
         return FileResponse("stremio_telegram_banner.png")
     return Response(status_code=404)
+
+_poster_cache = {}
+
+@app.get("/poster/{chat_id}/{msg_id}")
+async def poster_handler(chat_id: str, msg_id: int):
+    """Serve video thumbnail from Telegram as poster image."""
+    cache_key = f"{chat_id}:{msg_id}"
+    if cache_key in _poster_cache:
+        return Response(content=_poster_cache[cache_key], media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=86400"})
+    try:
+        try:
+            chat_id_val = int(chat_id)
+        except ValueError:
+            chat_id_val = chat_id
+
+        msg = await tg_client_manager.get_message(msg_id, chat_id=chat_id_val)
+        if not msg:
+            return Response(status_code=404)
+
+        media = msg.video or msg.document or msg.audio
+        if not media or not getattr(media, 'thumbs', None):
+            return Response(status_code=404)
+
+        thumb = sorted(media.thumbs, key=lambda t: (t.width or 0) * (t.height or 0))[-1]
+        file = await tg_client_manager.client.download_media(thumb.file_id, in_memory=True)
+        if file:
+            data = file.getvalue() if hasattr(file, 'getvalue') else bytes(file)
+            _poster_cache[cache_key] = data
+            return Response(content=data, media_type="image/jpeg",
+                            headers={"Cache-Control": "public, max-age=86400"})
+        return Response(status_code=404)
+    except Exception as e:
+        logger.error(f"Failed to serve poster for {chat_id}/{msg_id}: {e}")
+        return Response(status_code=404)
 
 @app.get("/meta/{type}/{meta_id}.json", dependencies=[Depends(verify_api_key)])
 @app.get("/{api_key}/meta/{type}/{meta_id}.json", dependencies=[Depends(verify_api_key)])
@@ -880,14 +962,19 @@ async def meta_handler(type: str, meta_id: str, api_key: str = ""):
                 caption = first_msg.caption or ""
                 description = f"💾 Telegram File\n📦 Size: {format_size(total_size)}\n💬 {caption}" if caption else f"💾 Telegram File\n📦 Size: {format_size(total_size)}"
                 
+        logo_url = f"{Config.ADDON_URL}/stremio_telegram_logo.png" if getattr(Config, "ADDON_URL", None) else None
+        poster_url = logo_url
+        if media and getattr(media, 'thumbs', None):
+            poster_url = f"{Config.ADDON_URL}/poster/{chat_id_val}/{first_msg.id}"
+
         meta = {
             "id": meta_id,
             "type": type,
             "name": file_name,
             "description": description,
-            "poster": f"{Config.ADDON_URL}/stremio_telegram_logo.png" if getattr(Config, "ADDON_URL", None) else None,
+            "poster": poster_url,
             "background": f"{Config.ADDON_URL}/stremio_telegram_banner.png" if getattr(Config, "ADDON_URL", None) else None,
-            "logo": f"{Config.ADDON_URL}/stremio_telegram_logo.png" if getattr(Config, "ADDON_URL", None) else None,
+            "logo": logo_url,
         }
         
         if type == "series":

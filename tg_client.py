@@ -324,7 +324,31 @@ class TelegramClientManager:
         
         if not self.is_running:
             logger.info("Starting Pyrogram client...")
-            await self.client.start()
+            try:
+                is_authorized = await self.client.connect()
+            except Exception as e:
+                try:
+                    await self.client.disconnect()
+                except Exception:
+                    pass
+                if "struct" in str(e) or "unpack" in str(e) or "binascii" in str(e):
+                    raise RuntimeError(
+                        "Telegram session string is malformed or invalid! "
+                        "The USER_SESSION_STRING you pasted into your Hugging Face Space secrets is corrupted or incomplete. "
+                        "Please regenerate it and copy-paste it carefully."
+                    ) from e
+                raise e
+
+            if not is_authorized:
+                try:
+                    await self.client.disconnect()
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    "Telegram client is not authorized! "
+                    "Your USER_SESSION_STRING or BOT_TOKEN is invalid, expired, or missing. "
+                    "Please check your Hugging Face Space secrets/environment variables."
+                )
             self.is_running = True
             
             # Resolve target channels on startup to avoid PeerIdInvalid errors
