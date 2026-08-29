@@ -373,7 +373,7 @@ class TelegramClientManager:
                 if "struct" in str(e) or "unpack" in str(e) or "binascii" in str(e):
                     raise RuntimeError(
                         "Telegram session string is malformed or invalid! "
-                        "The USER_SESSION_STRING you pasted into your Hugging Face Space secrets is corrupted or incomplete. "
+                        "The USER_SESSION_STRING you pasted into your GitHub repository secrets is corrupted or incomplete. "
                         "Please regenerate it and copy-paste it carefully."
                     ) from e
                 raise e
@@ -386,7 +386,7 @@ class TelegramClientManager:
                 raise RuntimeError(
                     "Telegram client is not authorized! "
                     "Your USER_SESSION_STRING or BOT_TOKEN is invalid, expired, or missing. "
-                    "Please check your Hugging Face Space secrets/environment variables."
+                    "Please check your GitHub repository secrets / environment variables."
                 )
             self.is_running = True
             

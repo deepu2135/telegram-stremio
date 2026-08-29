@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up a new user named "user" with UID 1000 (required by Hugging Face Spaces)
+# Set up a non-root application user
 RUN useradd -m -u 1000 user
 
 WORKDIR /app
@@ -24,7 +24,7 @@ COPY --chown=user:user . .
 # Switch to the non-root user
 USER user
 
-# Expose port (Hugging Face Spaces runs on 7860)
+# Expose port (default 7860)
 EXPOSE 7860
 
 # Command to run the addon dynamically supporting optional auto-update

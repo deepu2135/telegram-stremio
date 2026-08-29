@@ -596,7 +596,7 @@ async def landing(request: Request):
                         Local Deployment Troubleshooting
                     </summary>
                     <div class="troubleshoot-content">
-                        This error <strong>only occurs in local HTTP deployments</strong>. If you deploy this project to a secure public HTTPS server (such as Hugging Face Spaces, Render, or Koyeb), this installation button will work <strong>flawlessly</strong>.
+                        This error <strong>only occurs in local HTTP deployments</strong>. If you deploy this project to a secure public HTTPS server (such as via GitHub Actions with Cloudflare Tunnel), this installation button will work <strong>flawlessly</strong>.
                         <br><br>
                         For local deployments, Stremio's desktop protocol handler (<strong>stremio://</strong>) strips local ports and forces HTTPS, resulting in connection failure.
                         <br><br>
