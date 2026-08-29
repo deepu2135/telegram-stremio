@@ -286,7 +286,44 @@ While the config accepts any number of channels, it is highly recommended to lim
 
 Read these limitations carefully to choose the hosting platform that best fits your requirements:
 
-### 1. Hugging Face Spaces
+### 1. GitHub Actions (100% Free 24/7 Hosting with Cloudflare Tunnel)
+
+You can run and host the addon server **directly inside GitHub Actions** for free.
+
+* **Cost**: 100% Free (Unlimited runner minutes for public GitHub repositories).
+* **Specs**: 2 vCPU, 7 GB RAM, Gigabit network speed with fast `tgcrypto` support.
+* **Auto-Restart**: Automatically scheduled (`cron: '0 */5 * * *'`) to launch a fresh runner every 5 hours before the 6-hour GitHub Actions job limit, providing continuous 24/7 uptime.
+
+#### GitHub Actions Setup Guide:
+
+1. **Fork or Clone this Repository**:
+   - Ensure you have this repository in your GitHub account.
+2. **Configure Repository Secrets**:
+   - Go to your repository on GitHub → **Settings** → **Secrets and variables** → **Actions**.
+   - Click **New repository secret** and add:
+     - `API_ID`: Your Telegram API ID from [my.telegram.org](https://my.telegram.org).
+     - `API_HASH`: Your Telegram API Hash from [my.telegram.org](https://my.telegram.org).
+     - `USER_SESSION_STRING`: Your Pyrogram User String Session *(bypasses 2GB file limit)*.
+     - `API_KEY`: *(Optional)* Secret password of your choice to protect your addon.
+     - `CLOUDFLARE_TUNNEL_TOKEN`: *(Optional)* If you have a Cloudflare Zero Trust Named Tunnel for a fixed custom domain (e.g. `https://stremio.yourdomain.com`). If omitted, it automatically uses a free ephemeral `trycloudflare.com` tunnel.
+3. **Start the Addon Server**:
+   - Go to the **Actions** tab at the top of your GitHub repository.
+   - Under Workflows, click **Deploy Stremio** (or **Host Telegram Stremio Addon**).
+   - Click **Run workflow** → **Run workflow**.
+4. **Get Your Manifest URL**:
+   - Click on the active workflow run.
+   - Go to the **Summary** tab (or expand the **Start Server** step) to see your live Cloudflare Tunnel URL:
+     ```text
+     https://<generated-tunnel-id>.trycloudflare.com/manifest.json?api_key=YOUR_API_KEY
+     ```
+5. **Install into Stremio**:
+   - Open **Stremio** (Desktop, Mobile, Web, or Android TV).
+   - Go to **Add-ons** (puzzle icon 🧩).
+   - Paste your Manifest URL into the search bar and click **Install**.
+
+---
+
+### 2. Hugging Face Spaces
 
 Hugging Face Spaces is the recommended hosting platform as it provides fast networking, stable CPU environments, and does not require credit card verification.
 
@@ -334,24 +371,24 @@ The addon can be deployed on Hugging Face Spaces in less than 5 minutes. You can
 
 Once the status bar at the top turns green and says **Running**, your addon is online!
 
-### 2. Render
+### 3. Render
 - **Cost**: Hobby/Free Tier. No credit card required at signup.
 - **Drawbacks**: 
   - **⚠️ Bandwidth Limit (Strict 5GB/Month Outbound Limit)**: Render imposes a strict **5 GB limit** of free outbound bandwidth per month for web service apps (unlike static sites which get 100GB). Since video streaming is data-intensive, **you will hit this 5GB limit almost immediately**. If you exceed it without a credit card/billing configured, **Render will temporarily deactivate your service addon** (it will not ban your personal Render billing account, but the streaming proxy will stop working until the next billing cycle starts or you upgrade).
   - **Auto-Sleep**: The container spins down/goes to sleep after **15 minutes of inactivity**. If you haven't used Stremio for a while, opening a video will trigger a wakeup request. The container will take **1 to 2 minutes** to build/spin up, causing Stremio to show a connection error initially. Simply wait 60 seconds and try playing again.
 
-### 3. Koyeb
+### 4. Koyeb
 - **Cost**: Free Tier. **Requires card verification at signup** (even though you won't be charged).
 - **Drawbacks**:
   - The container stays continuously active (no auto-sleep), but you must verify your identity with a valid credit card during registration.
   - Limited to 1 free service per organization.
 
-### 4. Railway
+### 5. Railway
 - **Cost**: Trial Tier. Provides $5 free credits (approx. 500 hours of continuous runtime per month).
 - **Drawbacks**:
   - The service will run out of hours and stop working before the end of the month unless you upgrade to a developer account (which requires a card and charges on usage).
 
-### 5. Zeabur
+### 6. Zeabur
 - **Cost**: Trial Tier. Limited credits.
 - **Drawbacks**:
   - Similar to Railway, has a limited free trial tier or resource caps.
