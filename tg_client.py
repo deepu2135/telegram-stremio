@@ -89,15 +89,25 @@ async def _patched_get_file(
 
         current = 0
         total = abs(limit) or (1 << 31) - 1
-        chunk_size = 1024 * 1024
+        chunk_size = 512 * 1024
         offset_bytes = abs(offset) * chunk_size
 
         dc_id = file_id.dc_id
 
-        async with self.media_sessions_lock:
-            session = self.media_sessions.get(dc_id)
-            if session is None:
-                logger.info(f"Creating new media session for DC{dc_id}...")
+        # Initialize custom sessions dictionary if not present
+        if not hasattr(self, "_custom_media_sessions"):
+            self._custom_media_sessions = {}
+            self._custom_sessions_lock = asyncio.Lock()
+            
+        pool_size = 4
+        
+        async with self._custom_sessions_lock:
+            if dc_id not in self._custom_media_sessions:
+                self._custom_media_sessions[dc_id] = []
+                
+            sessions = self._custom_media_sessions[dc_id]
+            while len(sessions) < pool_size:
+                logger.info(f"Creating parallel media session {len(sessions) + 1}/{pool_size} for DC{dc_id}...")
                 session = Session(
                     self, dc_id,
                     await Auth(self, dc_id, await self.storage.test_mode()).create()
@@ -121,28 +131,46 @@ async def _patched_get_file(
                             bytes=exported_auth.bytes
                         )
                     )
-                self.media_sessions[dc_id] = session
-            else:
-                logger.info(f"Reusing cached media session for DC{dc_id}")
+                sessions.append(session)
 
         try:
-            r = await session.invoke(
-                raw.functions.upload.GetFile(
-                    location=location,
-                    offset=offset_bytes,
-                    limit=chunk_size
-                ),
-                sleep_threshold=30
-            )
+            # Helper to fetch a chunk asynchronously using a specific session
+            async def fetch_chunk(off_bytes, sess):
+                return await sess.invoke(
+                    raw.functions.upload.GetFile(
+                        location=location,
+                        offset=off_bytes,
+                        limit=chunk_size
+                    ),
+                    sleep_threshold=30
+                )
+
+            # Request first chunk using session 0
+            r = await fetch_chunk(offset_bytes, sessions[0])
 
             if isinstance(r, raw.types.upload.File):
+                # Start pre-fetching the next 3 chunks in parallel using different sessions
+                prefetch_tasks = {}
+                for idx in range(1, 4):
+                    chunk_offset = offset_bytes + idx * chunk_size
+                    if idx >= total:
+                        break
+                    sess = sessions[idx % pool_size]
+                    prefetch_tasks[chunk_offset] = asyncio.create_task(fetch_chunk(chunk_offset, sess))
+
                 while True:
                     chunk = r.bytes
-
                     yield chunk
 
                     current += 1
+                    yielded_offset = offset_bytes
                     offset_bytes += chunk_size
+
+                    # Trigger next pre-fetch (e.g. for chunk yielded_offset + 4 * chunk_size)
+                    next_prefetch_offset = yielded_offset + 4 * chunk_size
+                    if current + 3 < total:
+                        sess = sessions[(current + 3) % pool_size]
+                        prefetch_tasks[next_prefetch_offset] = asyncio.create_task(fetch_chunk(next_prefetch_offset, sess))
 
                     if progress:
                         func = functools.partial(
@@ -160,16 +188,26 @@ async def _patched_get_file(
                             await self.loop.run_in_executor(self.executor, func)
 
                     if len(chunk) < chunk_size or current >= total:
+                        # Cancel all pending pre-fetch tasks
+                        for task in prefetch_tasks.values():
+                            task.cancel()
                         break
 
-                    r = await session.invoke(
-                        raw.functions.upload.GetFile(
-                            location=location,
-                            offset=offset_bytes,
-                            limit=chunk_size
-                        ),
-                        sleep_threshold=30
-                    )
+                    # Retrieve the next chunk from the prefetch dict
+                    next_chunk_offset = yielded_offset + chunk_size
+                    if next_chunk_offset in prefetch_tasks:
+                        try:
+                            r = await prefetch_tasks[next_chunk_offset]
+                            del prefetch_tasks[next_chunk_offset]
+                            if not isinstance(r, raw.types.upload.File):
+                                break
+                        except Exception as pre_err:
+                            logger.error(f"Error in parallel prefetch: {pre_err}")
+                            for task in prefetch_tasks.values():
+                                task.cancel()
+                            raise pre_err
+                    else:
+                        break
 
             elif isinstance(r, raw.types.upload.FileCdnRedirect):
                 cdn_session = Session(
@@ -191,7 +229,7 @@ async def _patched_get_file(
 
                         if isinstance(r2, raw.types.upload.CdnFileReuploadNeeded):
                             try:
-                                await session.invoke(
+                                await sessions[0].invoke(
                                     raw.functions.upload.ReuploadCdnFile(
                                         file_token=r.file_token,
                                         request_token=r2.request_token
@@ -213,7 +251,7 @@ async def _patched_get_file(
                             )
                         )
 
-                        hashes = await session.invoke(
+                        hashes = await sessions[0].invoke(
                             raw.functions.upload.GetCdnFileHashes(
                                 file_token=r.file_token,
                                 offset=offset_bytes
@@ -251,14 +289,15 @@ async def _patched_get_file(
                     await cdn_session.stop()
         except Exception as e:
             if not isinstance(e, (pyrogram.StopTransmission, asyncio.CancelledError)):
-                logger.warning(f"Error in media session for DC{dc_id}, discarding from cache: {e}")
-                async with self.media_sessions_lock:
-                    if self.media_sessions.get(dc_id) is session:
-                        self.media_sessions.pop(dc_id, None)
-                try:
-                    await session.stop()
-                except Exception:
-                    pass
+                logger.warning(f"Error in media sessions for DC{dc_id}: {e}")
+                async with self._custom_sessions_lock:
+                    if dc_id in self._custom_media_sessions:
+                        for s in self._custom_media_sessions[dc_id]:
+                            try:
+                                await s.stop()
+                            except Exception:
+                                pass
+                        self._custom_media_sessions.pop(dc_id, None)
             raise e
 
 Client.get_file = _patched_get_file
@@ -324,7 +363,31 @@ class TelegramClientManager:
         
         if not self.is_running:
             logger.info("Starting Pyrogram client...")
-            await self.client.start()
+            try:
+                is_authorized = await self.client.connect()
+            except Exception as e:
+                try:
+                    await self.client.disconnect()
+                except Exception:
+                    pass
+                if "struct" in str(e) or "unpack" in str(e) or "binascii" in str(e):
+                    raise RuntimeError(
+                        "Telegram session string is malformed or invalid! "
+                        "The USER_SESSION_STRING you pasted into your Hugging Face Space secrets is corrupted or incomplete. "
+                        "Please regenerate it and copy-paste it carefully."
+                    ) from e
+                raise e
+
+            if not is_authorized:
+                try:
+                    await self.client.disconnect()
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    "Telegram client is not authorized! "
+                    "Your USER_SESSION_STRING or BOT_TOKEN is invalid, expired, or missing. "
+                    "Please check your Hugging Face Space secrets/environment variables."
+                )
             self.is_running = True
             
             # Resolve target channels on startup to avoid PeerIdInvalid errors
@@ -536,6 +599,16 @@ class TelegramClientManager:
             self._message_cache[cache_key] = (now, msg)
             return msg
         except Exception as e:
+            err_name = type(e).__name__
+            if "PeerIdInvalid" in err_name or "PEER_ID_INVALID" in str(e).upper():
+                try:
+                    logger.info(f"PeerIdInvalid for {target_chat}, attempting to resolve via get_chat...")
+                    await self.client.get_chat(target_chat)
+                    msg = await self.client.get_messages(chat_id=target_chat, message_ids=message_id)
+                    self._message_cache[cache_key] = (now, msg)
+                    return msg
+                except Exception as re_err:
+                    logger.error(f"Failed to resolve and fetch message after PeerIdInvalid: {re_err}")
             logger.error(f"Failed to fetch message {message_id} in channel {target_chat}: {e}")
             raise e
 
