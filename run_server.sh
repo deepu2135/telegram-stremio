@@ -23,8 +23,6 @@ else
     sleep 1
   done
 
-  export ADDON_URL="$TUNNEL_URL"
-
   if [ -n "$CF_WORKER_URL" ]; then
     echo "📡 Syncing live tunnel with Cloudflare Worker: $CF_WORKER_URL"
     SECRET_KEY="${CF_WORKER_SECRET:-$API_KEY}"
@@ -34,8 +32,10 @@ else
       -d "{\"backend_url\": \"$TUNNEL_URL\"}" || true
     echo "✔ Cloudflare Worker Gateway synced!"
     
+    export ADDON_URL="${CF_WORKER_URL%/}"
     DISPLAY_URL="${CF_WORKER_URL%/}"
   else
+    export ADDON_URL="$TUNNEL_URL"
     DISPLAY_URL="$TUNNEL_URL"
   fi
 
