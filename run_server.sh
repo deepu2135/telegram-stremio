@@ -1,30 +1,18 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=========================================================="
-echo " Starting Telegram-Stremio Backend Server on port 7860..."
-echo "=========================================================="
-python3 -m uvicorn addon:app --host 127.0.0.1 --port 7860 &
-UVICORN_PID=$!
-
-for i in {1..30}; do
-  if curl -s http://127.0.0.1:7860 > /dev/null 2>&1; then
-    echo "✔ FastAPI server is responsive!"
-    break
-  fi
-  sleep 1
-done
-
 if [ -n "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
   echo "🌐 Connecting to Cloudflare Named Tunnel..."
   cloudflared tunnel run --token "$CLOUDFLARE_TUNNEL_TOKEN" &
+  TUNNEL_PID=$!
   if [ -n "$GITHUB_STEP_SUMMARY" ]; then
     echo "### 🚀 Stremio Addon Server Active" >> "$GITHUB_STEP_SUMMARY"
     echo "Running with custom Cloudflare Named Tunnel." >> "$GITHUB_STEP_SUMMARY"
   fi
 else
-  echo "🌐 Starting Quick TryCloudflare Tunnel..."
+  echo "🌐 Starting Quick TryCloudflare Tunnel on port 7860..."
   cloudflared tunnel --url http://127.0.0.1:7860 > /tmp/tunnel.log 2>&1 &
+  TUNNEL_PID=$!
 
   TUNNEL_URL=""
   for i in {1..30}; do
@@ -34,6 +22,8 @@ else
     fi
     sleep 1
   done
+
+  export ADDON_URL="$TUNNEL_URL"
 
   echo "=========================================================="
   echo " 🎉 YOUR STREMIO ADDON URL IS LIVE: "
@@ -54,5 +44,11 @@ else
     echo "3. Go to Add-ons -> paste URL -> Install" >> "$GITHUB_STEP_SUMMARY"
   fi
 fi
+
+echo "=========================================================="
+echo " Starting Telegram-Stremio Backend Server on port 7860..."
+echo "=========================================================="
+python3 -m uvicorn addon:app --host 127.0.0.1 --port 7860 &
+UVICORN_PID=$!
 
 wait $UVICORN_PID

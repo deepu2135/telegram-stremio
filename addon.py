@@ -1,3 +1,15 @@
+def get_addon_url(request: Request = None) -> str:
+    if request is not None:
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme or "https")
+        host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+        if host and "localhost" not in host and "127.0.0.1" not in host:
+            return f"{proto}://{host}".rstrip("/")
+    if getattr(Config, "ADDON_URL", None) and "localhost" not in Config.ADDON_URL and "127.0.0.1" not in Config.ADDON_URL:
+        return Config.ADDON_URL.rstrip("/")
+    if request is not None:
+        return str(request.base_url).rstrip("/")
+    return f"http://localhost:{getattr(Config, 'PORT', 7860)}"
+
 import logging
 import asyncio
 
@@ -197,9 +209,11 @@ async def manifest_endpoint(request: Request, api_key: str = ""):
 async def catalog_handler(
     type: str, 
     catalog_id: str, 
+    request: Request,
     extra: str = None,
     api_key: str = ""
 ):
+    addon_base_url = get_addon_url(request)
     if type not in ["movie", "series", "other"]:
         return {"metas": []}
         
@@ -238,13 +252,13 @@ async def catalog_handler(
     sliced_items = grouped_items[skip : skip + 50]
 
     metas = []
-    logo_url = f"{Config.ADDON_URL}/stremio_telegram_logo.png" if getattr(Config, "ADDON_URL", None) else None
+    logo_url = f"{get_addon_url(request)}/stremio_telegram_logo.png" if getattr(Config, "ADDON_URL", None) else None
 
     def get_poster_url(msg):
         """Use video thumbnail as poster if available, otherwise fall back to logo."""
         media = msg.video or msg.document or msg.audio
         if media and getattr(media, 'thumbs', None):
-            return f"{Config.ADDON_URL}/poster/{msg.chat.id}/{msg.id}"
+            return f"{get_addon_url(request)}/poster/{msg.chat.id}/{msg.id}"
         return logo_url
     
     for item in sliced_items:
@@ -449,10 +463,10 @@ async def meta_handler(type: str, meta_id: str, api_key: str = ""):
                 caption = first_msg.caption or ""
                 description = f"💾 Telegram File\n📦 Size: {format_size(total_size)}\n💬 {caption}" if caption else f"💾 Telegram File\n📦 Size: {format_size(total_size)}"
                 
-        logo_url = f"{Config.ADDON_URL}/stremio_telegram_logo.png" if getattr(Config, "ADDON_URL", None) else None
+        logo_url = f"{get_addon_url(request)}/stremio_telegram_logo.png" if getattr(Config, "ADDON_URL", None) else None
         poster_url = logo_url
         if media and getattr(media, 'thumbs', None):
-            poster_url = f"{Config.ADDON_URL}/poster/{chat_id_val}/{first_msg.id}"
+            poster_url = f"{get_addon_url(request)}/poster/{chat_id_val}/{first_msg.id}"
 
         meta = {
             "id": meta_id,
@@ -460,7 +474,7 @@ async def meta_handler(type: str, meta_id: str, api_key: str = ""):
             "name": file_name,
             "description": description,
             "poster": poster_url,
-            "background": f"{Config.ADDON_URL}/stremio_telegram_banner.png" if getattr(Config, "ADDON_URL", None) else None,
+            "background": f"{get_addon_url(request)}/stremio_telegram_banner.png" if getattr(Config, "ADDON_URL", None) else None,
             "logo": logo_url,
         }
         
@@ -516,7 +530,7 @@ async def find_subtitles_for_video(video_filename: str, api_key: str = "", cache
                 
                 subtitles.append({
                     "id": f"tgsub_{msg.chat.id}_{msg.id}",
-                    "url": f"{Config.ADDON_URL}/stream/subtitle/{msg.chat.id}/{msg.id}/{urllib.parse.quote(sub_fn)}{query_param}",
+                    "url": f"{get_addon_url(request)}/stream/subtitle/{msg.chat.id}/{msg.id}/{urllib.parse.quote(sub_fn)}{query_param}",
                     "lang": lang
                 })
                 
@@ -530,6 +544,7 @@ async def stream_handler(
     request: Request,
     api_key: str = ""
 ):
+    addon_base_url = get_addon_url(request)
     if Config.API_KEY:
         actual_key = api_key or request.query_params.get("api_key", "")
         if actual_key != Config.API_KEY:
@@ -583,7 +598,7 @@ async def stream_handler(
                             file_size = entry.file_size
                             break
                             
-                    stream_url = f"{Config.ADDON_URL}/stream/zip/{chat_id}/{msg_ids}/{urllib.parse.quote(zip_entry_filename)}{query_param}"
+                    stream_url = f"{get_addon_url(request)}/stream/zip/{chat_id}/{msg_ids}/{urllib.parse.quote(zip_entry_filename)}{query_param}"
                     subtitles = await find_subtitles_for_video(zip_entry_filename, api_key=api_key)
                     
                     streams.append({
@@ -624,7 +639,7 @@ async def stream_handler(
                             if med:
                                 total_size += med.file_size
                                 
-                    stream_url = f"{Config.ADDON_URL}/stream/split/{chat_id}/{msg_ids}/{urllib.parse.quote(base_name)}{query_param}"
+                    stream_url = f"{get_addon_url(request)}/stream/split/{chat_id}/{msg_ids}/{urllib.parse.quote(base_name)}{query_param}"
                     
                     streams.append({
                         "name": "▶ TG Play (Split)",
@@ -651,7 +666,7 @@ async def stream_handler(
                     file_name = getattr(media, "file_name", "video.mp4") or "video.mp4"
                     file_size = media.file_size
                     
-                    stream_url = f"{Config.ADDON_URL}/stream/file/{chat_id}/{msg_id}/{urllib.parse.quote(file_name)}{query_param}"
+                    stream_url = f"{get_addon_url(request)}/stream/file/{chat_id}/{msg_id}/{urllib.parse.quote(file_name)}{query_param}"
                     subtitles = await find_subtitles_for_video(file_name, api_key=api_key)
                     
                     streams.append({
@@ -756,7 +771,7 @@ async def stream_handler(
                                         if entry_score < SCORE_THRESHOLD:
                                             continue
                                             
-                                        stream_url = f"{Config.ADDON_URL}/stream/zip/{chat_id}/{msg_ids}/{urllib.parse.quote(entry.filename)}{query_param}"
+                                        stream_url = f"{get_addon_url(request)}/stream/zip/{chat_id}/{msg_ids}/{urllib.parse.quote(entry.filename)}{query_param}"
                                         subtitles = await find_subtitles_for_video(entry.filename, api_key=api_key, cached_messages=tg_results_flat)
                                         valid_streams.append({
                                             "name": f"▶ TG ZIP {quality_str}",
@@ -773,7 +788,7 @@ async def stream_handler(
                         if not is_zip:
                             if not is_video_file(base_name):
                                 continue
-                            stream_url = f"{Config.ADDON_URL}/stream/split/{chat_id}/{msg_ids}/{urllib.parse.quote(base_name)}{query_param}"
+                            stream_url = f"{get_addon_url(request)}/stream/split/{chat_id}/{msg_ids}/{urllib.parse.quote(base_name)}{query_param}"
                             valid_streams.append({
                                 "name": f"▶ TG Split {quality_str}",
                                 "title": f"{base_name}\n💾 Stitch stream | 📦 {format_size(total_size)}",
@@ -823,7 +838,7 @@ async def stream_handler(
                                         if entry_score < SCORE_THRESHOLD:
                                             continue
                                             
-                                        stream_url = f"{Config.ADDON_URL}/stream/zip/{chat_id}/{msg.id}/{urllib.parse.quote(entry.filename)}{query_param}"
+                                        stream_url = f"{get_addon_url(request)}/stream/zip/{chat_id}/{msg.id}/{urllib.parse.quote(entry.filename)}{query_param}"
                                         subtitles = await find_subtitles_for_video(entry.filename, api_key=api_key, cached_messages=tg_results_flat)
                                         valid_streams.append({
                                             "name": f"▶ TG ZIP {quality_str}",
@@ -840,7 +855,7 @@ async def stream_handler(
                         if not is_zip:
                             if not is_video_file(file_name):
                                 continue
-                            stream_url = f"{Config.ADDON_URL}/stream/file/{chat_id}/{msg.id}/{urllib.parse.quote(file_name)}{query_param}"
+                            stream_url = f"{get_addon_url(request)}/stream/file/{chat_id}/{msg.id}/{urllib.parse.quote(file_name)}{query_param}"
                             subtitles = await find_subtitles_for_video(file_name, api_key=api_key, cached_messages=tg_results_flat)
                             
                             valid_streams.append({
