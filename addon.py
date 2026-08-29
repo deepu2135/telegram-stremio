@@ -1,15 +1,3 @@
-def get_addon_url(request: Request = None) -> str:
-    if request is not None:
-        proto = request.headers.get("x-forwarded-proto", request.url.scheme or "https")
-        host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
-        if host and "localhost" not in host and "127.0.0.1" not in host:
-            return f"{proto}://{host}".rstrip("/")
-    if getattr(Config, "ADDON_URL", None) and "localhost" not in Config.ADDON_URL and "127.0.0.1" not in Config.ADDON_URL:
-        return Config.ADDON_URL.rstrip("/")
-    if request is not None:
-        return str(request.base_url).rstrip("/")
-    return f"http://localhost:{getattr(Config, 'PORT', 7860)}"
-
 import logging
 import asyncio
 
@@ -25,6 +13,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends, Response
 from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+def get_addon_url(request: Request = None) -> str:
+    if request is not None:
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme or "https")
+        host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+        if host and "localhost" not in host and "127.0.0.1" not in host:
+            return f"{proto}://{host}".rstrip("/")
+    if getattr(Config, "ADDON_URL", None) and "localhost" not in Config.ADDON_URL and "127.0.0.1" not in Config.ADDON_URL:
+        return Config.ADDON_URL.rstrip("/")
+    if request is not None:
+        return str(request.base_url).rstrip("/")
+    return f"http://localhost:{getattr(Config, 'PORT', 7860)}"
 
 from config import Config
 from tg_client import tg_client_manager
