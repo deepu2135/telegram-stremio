@@ -86,9 +86,11 @@ python3 -c "import asyncio; from pyrogram import Client; api_id = int(input('API
 | `API_HASH` | **Yes** | Telegram API Hash from my.telegram.org | `a1b2c3d4e5f6...` |
 | `USER_SESSION_STRING` | **Yes** | Pyrogram Session String (from Step 3) | `1BJWX...` |
 | `API_KEY` | **Optional** | Password to protect your addon from unauthorized use | `mysecretkey123` |
+| `CF_WORKER_URL` | **Optional** | Your permanent Cloudflare Worker URL (see [Permanent URL Guide](#-how-to-get-a-permanent-addon-url)) | `https://stremio-gateway.yourname.workers.dev` |
+| `CF_WORKER_SECRET` | **Optional** | Secret token for your Worker (defaults to `API_KEY`) | `mysecretkey123` |
+| `CLOUDFLARE_TUNNEL_TOKEN` | **Optional** | Cloudflare Zero Trust Named Tunnel Token for fixed custom domains | `eyJh...` |
 | `TELEGRAM_CHANNEL_ID` | **Optional** | Specific channel ID(s) to index (comma-separated) | `-1001234567890` |
 | `LOG_CHANNEL_ID` | **Optional** | Channel ID to send playback activity logs | `-1009876543210` |
-| `CLOUDFLARE_TUNNEL_TOKEN` | **Optional** | Cloudflare Zero Trust Named Tunnel Token for fixed custom domains | `eyJh...` |
 
 ---
 
@@ -105,7 +107,7 @@ python3 -c "import asyncio; from pyrogram import Client; api_id = int(input('API
 
 1. Click on the running **Deploy Stremio** workflow run.
 2. Click **Summary** (or expand the **Start Server** step in the logs).
-3. Copy your live Cloudflare URL:
+3. Copy your live URL:
    ```text
    https://<generated-tunnel-id>.trycloudflare.com/
    ```
@@ -113,6 +115,64 @@ python3 -c "import asyncio; from pyrogram import Client; api_id = int(input('API
    * Open the URL above in your phone or PC web browser.
    * Enter your `API_KEY` (if configured) and click **Install on Stremio App** (or **Install on Stremio Web**).
    * Stremio will open and install your addon automatically!
+
+---
+
+## 🌐 How to Get a Permanent Addon URL
+
+By default, the free Quick Tunnel creates a new URL every 5 hours when GitHub Actions restarts. You can easily set up a **Permanent URL** that **never changes** using either method below:
+
+### 🌟 Method 1: Free Cloudflare Worker Gateway (No Domain Needed — Recommended)
+
+Get a permanent, 100% free `*.workers.dev` URL without buying or owning a domain:
+
+1. **Create a Worker in Cloudflare**:
+   * Go to **[Cloudflare Dashboard](https://dash.cloudflare.com/)** → **Compute (Workers & Pages)** → **Create application** → **Create Worker**.
+   * Choose **Start with Hello World!** → Name it `stremio-gateway` → Tap **Deploy**.
+2. **Create KV Storage**:
+   * In the left menu under **Workers & Pages**, tap **KV** → **Create a namespace** named `STREMIO_KV` → Tap **Add**.
+3. **Bind KV to Your Worker**:
+   * Go back to your Worker (`stremio-gateway`) → **Settings** tab → **Bindings** (or Variables & Secrets) → **Add binding**:
+     * **Type:** `KV namespace`
+     * **Variable name:** `STREMIO_KV`
+     * **KV namespace:** `STREMIO_KV`
+   * Tap **Save and Deploy**.
+4. **Paste the 1-Line Gateway Code**:
+   * Open your Worker page → Tap **Edit code** → Replace everything with this 1-line snippet and tap **Deploy**:
+     ```javascript
+     export default{async fetch(request,env){const url=new URL(request.url);if(url.pathname==="/__update_backend"&&request.method==="POST"){const auth=request.headers.get("Authorization")||"";if(!auth.includes(env.CF_WORKER_SECRET||"deep@2005"))return new Response("Unauthorized",{status:401});const data=await request.json();await env.STREMIO_KV.put("BACKEND",data.backend_url);return new Response(JSON.stringify({status:"ok"}),{headers:{"content-type":"application/json"}});}const backend=await env.STREMIO_KV.get("BACKEND");if(!backend)return new Response("Server starting up. Please wait 30 seconds.",{status:503});const target=new URL(url.pathname+url.search,backend);const headers=new Headers(request.headers);headers.set("X-Forwarded-Host",url.host);headers.set("X-Forwarded-Proto","https");return fetch(target.toString(),{method:request.method,headers:headers,body:request.body,redirect:"follow"});}};
+     ```
+5. **Add `CF_WORKER_URL` to GitHub Secrets**:
+   * Go to your repository on GitHub → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
+     * **Name:** `CF_WORKER_URL`
+     * **Value:** `https://stremio-gateway.yourname.workers.dev`
+6. **Your Permanent Stremio URL**:
+   ```text
+   https://stremio-gateway.yourname.workers.dev/manifest.json?api_key=YOUR_API_KEY
+   ```
+   GitHub Actions will automatically sync with this Worker every 5 hours — your URL stays online and never changes!
+
+---
+
+### 🌐 Method 2: Cloudflare Zero Trust Named Tunnel (For Custom Domains)
+
+If you own a custom domain on Cloudflare (e.g. `yourdomain.com`):
+
+1. Go to **[Cloudflare Zero Trust](https://one.dash.cloudflare.com/)** → **Networks** → **Tunnels** → **Add a tunnel**.
+2. Select **Cloudflared** → Name it `telegram-stremio` → Save.
+3. Under **Install connector**, copy the token string (`eyJh...`).
+4. Under **Public Hostname**, configure:
+   * **Subdomain:** `stremio`
+   * **Domain:** `yourdomain.com`
+   * **Type:** `HTTP`
+   * **URL:** `127.0.0.1:7860`
+5. In GitHub Secrets, add:
+   * **Name:** `CLOUDFLARE_TUNNEL_TOKEN`
+   * **Value:** *(paste the `eyJh...` token)*
+6. Your permanent URL will be:
+   ```text
+   https://stremio.yourdomain.com/manifest.json?api_key=YOUR_API_KEY
+   ```
 
 ---
 
@@ -174,9 +234,11 @@ graph TD
 | `API_HASH` | **Yes** | Your Telegram API Hash from [my.telegram.org](https://my.telegram.org). |
 | `USER_SESSION_STRING` | **Yes** | Pyrogram Session String (allows streaming files up to 4GB). |
 | `API_KEY` | No | Secret password of your choice to protect your addon endpoints (`?api_key=...`). |
+| `CF_WORKER_URL` | No | Permanent Cloudflare Worker URL (`https://stremio-gateway.yourname.workers.dev`). |
+| `CF_WORKER_SECRET` | No | Authorization secret for Cloudflare Worker sync (defaults to `API_KEY`). |
+| `CLOUDFLARE_TUNNEL_TOKEN` | No | Cloudflare Zero Trust Named Tunnel Token for fixed custom domains. |
 | `TELEGRAM_CHANNEL_ID` | No | Comma-separated list of channel IDs or usernames to index (`-1001234567890, @my_channel`). |
 | `LOG_CHANNEL_ID` | No | Telegram channel ID where stream/playback logs are sent. |
-| `CLOUDFLARE_TUNNEL_TOKEN` | No | Cloudflare Zero Trust Named Tunnel Token for fixed custom domains. |
 | `CACHE_TTL` | No | Search cache duration in seconds (default: `1800` [30 mins]). |
 | `TIMEZONE` | No | Timezone for logs (default: `UTC`). |
 
