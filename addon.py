@@ -37,7 +37,8 @@ from utils import (
     get_search_query_from_filename,
     parse_split_info,
     is_video_file,
-    matches_title
+    matches_title,
+    get_mime_type
 )
 from zip_helper import (
     list_zip_files,
@@ -1485,7 +1486,7 @@ async def tg_stream_proxy(
         raise HTTPException(status_code=404, detail="No playable media found in message")
         
     file_size = media.file_size
-    mime_type = media.mime_type or "video/mp4"
+    mime_type = get_mime_type(filename, media.mime_type)
     
     if request.method == "GET":
         asyncio.create_task(
@@ -1672,7 +1673,7 @@ async def tg_split_stream_proxy(
             pass
             
     content_length = end - start + 1
-    mime_type = chunks_info[0]["media"].mime_type or "video/mp4"
+    mime_type = get_mime_type(filename, chunks_info[0]["media"].mime_type)
     
     status_code = 206 if range_header else 200
     
@@ -1700,7 +1701,7 @@ async def tg_split_stream_proxy(
         
     async def split_file_generator():
         bytes_sent = 0
-        block_size = 1024 * 1024  # 1 MB blocks
+        block_size = 512 * 1024  # 512 KB blocks matching Pyrogram chunk size
         
         for chunk in chunks_info:
             c_start = chunk["start_byte"]

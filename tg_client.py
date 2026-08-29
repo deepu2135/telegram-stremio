@@ -37,6 +37,22 @@ async def _patched_auth_create(self):
 Auth.create = _patched_auth_create
 
 
+class LockedMediaSession:
+    def __init__(self, session: Session):
+        self.session = session
+        self.lock = asyncio.Lock()
+
+    async def invoke(self, query):
+        async with self.lock:
+            return await self.session.invoke(query, sleep_threshold=30)
+
+    async def stop(self):
+        try:
+            await self.session.stop()
+        except Exception:
+            pass
+
+
 # Monkey-patch Client.get_file to reuse media sessions and avoid connection overhead
 async def _patched_get_file(
     self: Client,
@@ -131,8 +147,9 @@ async def _patched_get_file(
                             bytes=exported_auth.bytes
                         )
                     )
-                sessions.append(session)
+                sessions.append(LockedMediaSession(session))
 
+        prefetch_tasks = {}
         try:
             # Helper to fetch a chunk asynchronously using a specific session
             async def fetch_chunk(off_bytes, sess):
@@ -141,8 +158,7 @@ async def _patched_get_file(
                         location=location,
                         offset=off_bytes,
                         limit=chunk_size
-                    ),
-                    sleep_threshold=30
+                    )
                 )
 
             # Request first chunk using session 0
@@ -150,7 +166,6 @@ async def _patched_get_file(
 
             if isinstance(r, raw.types.upload.File):
                 # Start pre-fetching the next 3 chunks in parallel using different sessions
-                prefetch_tasks = {}
                 for idx in range(1, 4):
                     chunk_offset = offset_bytes + idx * chunk_size
                     if idx >= total:
@@ -188,9 +203,6 @@ async def _patched_get_file(
                             await self.loop.run_in_executor(self.executor, func)
 
                     if len(chunk) < chunk_size or current >= total:
-                        # Cancel all pending pre-fetch tasks
-                        for task in prefetch_tasks.values():
-                            task.cancel()
                         break
 
                     # Retrieve the next chunk from the prefetch dict
@@ -201,10 +213,10 @@ async def _patched_get_file(
                             del prefetch_tasks[next_chunk_offset]
                             if not isinstance(r, raw.types.upload.File):
                                 break
+                        except asyncio.CancelledError:
+                            break
                         except Exception as pre_err:
                             logger.error(f"Error in parallel prefetch: {pre_err}")
-                            for task in prefetch_tasks.values():
-                                task.cancel()
                             raise pre_err
                     else:
                         break
@@ -287,6 +299,8 @@ async def _patched_get_file(
                             break
                 finally:
                     await cdn_session.stop()
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
             if not isinstance(e, (pyrogram.StopTransmission, asyncio.CancelledError)):
                 logger.warning(f"Error in media sessions for DC{dc_id}: {e}")
@@ -299,6 +313,10 @@ async def _patched_get_file(
                                 pass
                         self._custom_media_sessions.pop(dc_id, None)
             raise e
+        finally:
+            for task in prefetch_tasks.values():
+                if not task.done():
+                    task.cancel()
 
 Client.get_file = _patched_get_file
 
@@ -323,7 +341,7 @@ class TelegramClientManager:
                 session_string=Config.USER_SESSION_STRING,
                 in_memory=True,
                 no_updates=True,
-                max_concurrent_transmissions=10
+                max_concurrent_transmissions=20
             )
         elif Config.BOT_TOKEN:
             logger.info("Initializing Bot Client...")
@@ -334,7 +352,7 @@ class TelegramClientManager:
                 bot_token=Config.BOT_TOKEN,
                 in_memory=True,
                 no_updates=True,
-                max_concurrent_transmissions=10
+                max_concurrent_transmissions=20
             )
         else:
             raise ValueError("Neither USER_SESSION_STRING nor BOT_TOKEN is configured!")

@@ -286,4 +286,24 @@ def matches_title(filename: str, title: str) -> bool:
         
     return all(word in norm_prefix for word in words)
 
+def get_mime_type(filename: str, default_mime: str = None) -> str:
+    if default_mime and default_mime not in ("application/octet-stream", "application/zip", "binary/octet-stream"):
+        return default_mime
+    fn = str(filename).lower()
+    if fn.endswith(".mp4"):
+        return "video/mp4"
+    if fn.endswith(".mkv"):
+        return "video/x-matroska"
+    if fn.endswith(".webm"):
+        return "video/webm"
+    if fn.endswith(".avi"):
+        return "video/x-msvideo"
+    if fn.endswith(".mov"):
+        return "video/quicktime"
+    if fn.endswith(".ts"):
+        return "video/mp2t"
+    if fn.endswith(".m4v"):
+        return "video/x-m4v"
+    return default_mime or "video/mp4"
+
 
