@@ -7,6 +7,7 @@ try:
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
+import re
 import urllib.parse
 import markupsafe
 from contextlib import asynccontextmanager
@@ -86,6 +87,16 @@ app.add_middleware(
 )
 
 app.include_router(app_router)
+
+@app.middleware("http")
+async def clean_path_middleware(request: Request, call_next):
+    raw_path = request.scope.get("path", "")
+    if "manifest" in raw_path:
+        unquoted = urllib.parse.unquote(raw_path)
+        cleaned = re.sub(r'manifest[\s\.]*json', 'manifest.json', unquoted)
+        if cleaned != unquoted:
+            request.scope["path"] = cleaned
+    return await call_next(request)
 
 @app.middleware("http")
 async def disable_proxy_buffering(request: Request, call_next):
