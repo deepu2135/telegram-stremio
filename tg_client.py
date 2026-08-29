@@ -115,8 +115,8 @@ async def _patched_get_file(
             self._custom_media_sessions = {}
             self._custom_sessions_lock = asyncio.Lock()
             
-        pool_size = 8
-        prefetch_window = 6
+        pool_size = max(1, min(getattr(Config, "PARALLEL_CONNECTIONS", 3), 16))
+        prefetch_window = max(1, pool_size - 1)
         
         async with self._custom_sessions_lock:
             if dc_id not in self._custom_media_sessions:
