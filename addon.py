@@ -221,7 +221,7 @@ async def landing(request: Request):
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Telegram Addon by SunilRoy-dev</title>
+            <title>Stremio Telegram Addon</title>
             <meta name="description" content="Stream private Telegram files directly inside Stremio. Secure, lightweight, and ranges-supported proxy.">
             <link rel="preconnect" href="https://fonts.googleapis.com">
             <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -554,12 +554,6 @@ async def landing(request: Request):
                         </svg>
                         Stremio Telegram Addon
                     </div>
-                    <div class="header-actions">
-                        <a href="https://github.com/SunilRoy-dev/stremio-telegram-debrid" target="_blank" class="star-badge">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="margin-right: 4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                            Star on GitHub
-                        </a>
-                    </div>
                 </div>
                 
                 <div class="hero">
@@ -650,7 +644,7 @@ async def landing(request: Request):
                 </div>
                 
                 <div class="footer">
-                    Developed by <a href="https://github.com/SunilRoy-dev" target="_blank">SunilRoy-dev</a> | Licensed under MIT-NC
+                    Licensed under MIT-NC
                     <em>For educational and personal testing only. Do not use for unauthorized hosting or distribution of copyrighted media.</em>
                 </div>
             </div>
