@@ -40,8 +40,13 @@ else
   fi
 
   echo "=========================================================="
-  echo " 🎉 YOUR STREMIO ADDON URL IS LIVE: "
-  echo " 🔗 $DISPLAY_URL/manifest.json"
+  echo " 🎉 YOUR STREMIO ADDON IS LIVE & SYNCED!"
+  if [ -n "$CF_WORKER_URL" ]; then
+    echo " 🌐 Permanent Worker Gateway: $DISPLAY_URL/manifest.json"
+    echo " 🔗 Direct Cloudflare Tunnel: $TUNNEL_URL/manifest.json"
+  else
+    echo " 🔗 Manifest URL: $TUNNEL_URL/manifest.json"
+  fi
   echo "=========================================================="
 
   if [ -n "$GITHUB_STEP_SUMMARY" ]; then
