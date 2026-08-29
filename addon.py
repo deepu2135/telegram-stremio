@@ -182,7 +182,7 @@ def get_manifest(api_key: str = ""):
         "idPrefixes": ["tgfile_", "tt"],
         "catalogs": catalogs,
         "behaviorHints": {
-            "configurable": False,
+            "configurable": True,
             "configurationRequired": False
         }
     }
