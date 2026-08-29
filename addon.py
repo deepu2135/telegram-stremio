@@ -470,72 +470,6 @@ async def landing(request: Request):
                     border-radius: 8px;
                     padding: 20px;
                 }}
-                .feature-icon {{
-                    width: 36px;
-                    height: 36px;
-                    background: #27272a;
-                    border-radius: 6px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: var(--color-accent);
-                    margin-bottom: 12px;
-                }}
-                .feature-title {{
-                    font-family: var(--font-title);
-                    font-size: 0.95rem;
-                    font-weight: 600;
-                    margin-bottom: 6px;
-                    color: var(--text-primary);
-                }}
-                .feature-desc {{
-                    font-size: 0.8rem;
-                    color: var(--text-secondary);
-                    line-height: 1.45;
-                }}
-                .license-card {{
-                    background: #18181b;
-                    border: 1px solid var(--border-muted);
-                    border-radius: 8px;
-                    padding: 20px;
-                    margin-bottom: 32px;
-                }}
-                .license-title {{
-                    font-family: var(--font-title);
-                    font-size: 0.9rem;
-                    font-weight: 600;
-                    color: var(--text-primary);
-                    margin-bottom: 6px;
-                }}
-                .license-text {{
-                    font-size: 0.8rem;
-                    color: var(--text-secondary);
-                    line-height: 1.45;
-                }}
-                .footer {{
-                    text-align: center;
-                    font-size: 0.78rem;
-                    color: var(--text-muted);
-                    border-top: 1px solid var(--border-muted);
-                    padding-top: 24px;
-                    line-height: 1.6;
-                }}
-                .footer a {{
-                    color: var(--text-secondary);
-                    text-decoration: none;
-                    font-weight: 500;
-                    transition: color 0.2s;
-                }}
-                .footer a:hover {{
-                    color: var(--text-primary);
-                    text-decoration: underline;
-                }}
-                .footer em {{
-                    display: block;
-                    margin-top: 6px;
-                    color: var(--text-muted);
-                    font-style: normal;
-                }}
             </style>
         </head>
         <body>
@@ -605,48 +539,6 @@ async def landing(request: Request):
                     </div>
                 </details>
                 
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                        </div>
-                        <div class="feature-title">Segmented File Stitching</div>
-                        <div class="feature-desc">Groups and stitches split file parts (.001, .part1, etc.) into a virtual continuous stream on the fly.</div>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-                        </div>
-                        <div class="feature-title">Range-Seek Support</div>
-                        <div class="feature-desc">Full byte-range support allows you to skip forward or seek backward instantly inside your media player.</div>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                        </div>
-                        <div class="feature-title">Subtitle Mapping</div>
-                        <div class="feature-desc">Scans the channel dynamically for matching subtitle files (.srt, .vtt, .ass) and injects them.</div>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                        </div>
-                        <div class="feature-title">Access Control</div>
-                        <div class="feature-desc">Protects endpoints with a secure API key check to prevent unauthorized use of your proxy.</div>
-                    </div>
-                </div>
-                
-                <div class="license-card">
-                    <div class="license-title">License: MIT Non-Commercial License (MIT-NC)</div>
-                    <div class="license-text">
-                        This software is published under a custom <strong>MIT Non-Commercial License (MIT-NC)</strong>. Sublicensing, commercial distribution, renting, or monetization of this code or its derivatives is strictly prohibited. Attribution must be preserved in all copies.
-                    </div>
-                </div>
-                
-                <div class="footer">
-                    Licensed under MIT-NC
-                    <em>For educational and personal testing only. Do not use for unauthorized hosting or distribution of copyrighted media.</em>
-                </div>
             </div>
             
             <script>
