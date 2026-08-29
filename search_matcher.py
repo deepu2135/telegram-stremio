@@ -15,6 +15,7 @@ SEP_MID = r'[\s._\-x+,&:]{0,4}'
 # ARVIO English/Hebrew + Spanish T01C01 + Standalone EP01/Cap01 patterns
 EPISODE_PATTERN = re.compile(
     rf'[Ss][e]?(?:ason)?{SEP}(\d{{1,2}}){SEP_MID}[Ee][p]?(?:isode)?{SEP}(\d{{1,4}})' +
+    rf'|(?<!\d)(\d{{1,2}})[xX](\d{{1,4}})(?!\d)' +
     rf'|ע(?:ונה)?{SEP}(\d{{1,2}}){SEP_MID}פ(?:רק)?{SEP}(\d{{1,4}})' +
     rf'|[Tt](?:emporada)?{SEP}(\d{{1,2}}){SEP_MID}[Cc](?:apitulo|apítulo)?{SEP}(\d{{1,4}})',
     re.IGNORECASE
@@ -128,11 +129,12 @@ class TelegramSearchMatcher:
         
         # Match groups: 
         # (1, 2) - English S/E
-        # (3, 4) - Hebrew S/E
-        # (5, 6) - Spanish S/E
+        # (3, 4) - 1x01 format
+        # (5, 6) - Hebrew S/E
+        # (7, 8) - Spanish S/E
         groups = m.groups()
-        s = groups[0] or groups[2] or groups[4]
-        e = groups[1] or groups[3] or groups[5]
+        s = groups[0] or groups[2] or groups[4] or groups[6]
+        e = groups[1] or groups[3] or groups[5] or groups[7]
         
         if s is not None and e is not None:
             try:
@@ -169,10 +171,19 @@ class TelegramSearchMatcher:
             queries.append(f"{primary} {year}")
         queries.append(primary)
         
+        if "&" in primary:
+            queries.append(primary.replace("&", "and"))
+            queries.append(re.sub(r'\s+', ' ', primary.replace("&", " ")).strip())
+        elif " and " in primary.lower():
+            queries.append(re.sub(r'\band\b', '&', primary, flags=re.IGNORECASE))
+            
         if localized and localized.lower() != primary.lower():
             if year is not None:
                 queries.append(f"{localized} {year}")
             queries.append(localized)
+            if "&" in localized:
+                queries.append(localized.replace("&", "and"))
+                queries.append(re.sub(r'\s+', ' ', localized.replace("&", " ")).strip())
             
         # Deduplicate while preserving order
         seen = set()
@@ -213,14 +224,23 @@ class TelegramSearchMatcher:
                 f"{loc_base} s{s}e{e}",
                 f"{loc_base} s{s2}e{e2}",
                 f"{loc_base} s{s} e{e}",
-                f"{loc_base} s{s2} e{e2}"
+                f"{loc_base} s{s2} e{e2}",
+                f"{loc_base} {s}x{e2}",
+                f"{loc_base} {s}x{e}",
+                f"{loc_base}"
             ])
             
         queries.extend([
             f"{eng_base} s{s}e{e}",
             f"{eng_base} s{s2}e{e2}",
             f"{eng_base} s{s} e{e}",
-            f"{eng_base} s{s2} e{e2}"
+            f"{eng_base} s{s2} e{e2}",
+            f"{eng_base} {s}x{e2}",
+            f"{eng_base} {s}x{e}",
+            f"{eng_base} season {s} episode {e}",
+            f"{eng_base} episode {e}",
+            f"{eng_base} season {s}",
+            f"{eng_base}",
         ])
         
         seen = set()

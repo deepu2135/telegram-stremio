@@ -163,10 +163,16 @@ def get_manifest(api_key: str = ""):
             "extra": [{"name": "skip"}]
         })
 
-    # Global search catalog (always available)
+    # Global search catalogs (always available)
     catalogs.append({
         "type": "movie",
         "id": "telegram_search",
+        "name": "Telegram Search",
+        "extra": [{"name": "search", "isRequired": True}, {"name": "skip"}],
+    })
+    catalogs.append({
+        "type": "series",
+        "id": "telegram_search_series",
         "name": "Telegram Search",
         "extra": [{"name": "search", "isRequired": True}, {"name": "skip"}],
     })
@@ -804,7 +810,7 @@ async def poster_handler(chat_id: str, msg_id: int):
 
 @app.get("/meta/{type}/{meta_id}.json", dependencies=[Depends(verify_api_key)])
 @app.get("/{api_key}/meta/{type}/{meta_id}.json", dependencies=[Depends(verify_api_key)])
-async def meta_handler(type: str, meta_id: str, api_key: str = ""):
+async def meta_handler(type: str, meta_id: str, request: Request, api_key: str = ""):
     if not meta_id.startswith("tgfile_"):
         return {"meta": {}}
         
@@ -911,7 +917,7 @@ async def meta_handler(type: str, meta_id: str, api_key: str = ""):
         return {"meta": {}}
 
 
-async def find_subtitles_for_video(video_filename: str, api_key: str = "", cached_messages=None) -> list:
+async def find_subtitles_for_video(video_filename: str, request: Request = None, api_key: str = "", cached_messages=None) -> list:
     subtitles = []
     search_results = cached_messages or []
     query_param = f"?api_key={api_key}" if api_key else ""
@@ -945,9 +951,10 @@ async def find_subtitles_for_video(video_filename: str, api_key: str = "", cache
                 elif ".fre" in sub_fn_lower or "french" in sub_fn_lower:
                     lang = "fre"
                 
+                sub_url = f"{get_addon_url(request)}/stream/subtitle/{msg.chat.id}/{msg.id}/{urllib.parse.quote(sub_fn)}{query_param}"
                 subtitles.append({
                     "id": f"tgsub_{msg.chat.id}_{msg.id}",
-                    "url": f"{get_addon_url(request)}/stream/subtitle/{msg.chat.id}/{msg.id}/{urllib.parse.quote(sub_fn)}{query_param}",
+                    "url": sub_url,
                     "lang": lang
                 })
                 
@@ -1016,7 +1023,7 @@ async def stream_handler(
                             break
                             
                     stream_url = f"{get_addon_url(request)}/stream/zip/{chat_id}/{msg_ids}/{urllib.parse.quote(zip_entry_filename)}{query_param}"
-                    subtitles = await find_subtitles_for_video(zip_entry_filename, api_key=api_key)
+                    subtitles = await find_subtitles_for_video(zip_entry_filename, request=request, api_key=api_key)
                     
                     streams.append({
                         "name": "▶ TG ZIP Play",
@@ -1084,7 +1091,7 @@ async def stream_handler(
                     file_size = media.file_size
                     
                     stream_url = f"{get_addon_url(request)}/stream/file/{chat_id}/{msg_id}/{urllib.parse.quote(file_name)}{query_param}"
-                    subtitles = await find_subtitles_for_video(file_name, api_key=api_key)
+                    subtitles = await find_subtitles_for_video(file_name, request=request, api_key=api_key)
                     
                     streams.append({
                         "name": "▶ TG Play",
@@ -1189,7 +1196,7 @@ async def stream_handler(
                                             continue
                                             
                                         stream_url = f"{get_addon_url(request)}/stream/zip/{chat_id}/{msg_ids}/{urllib.parse.quote(entry.filename)}{query_param}"
-                                        subtitles = await find_subtitles_for_video(entry.filename, api_key=api_key, cached_messages=tg_results_flat)
+                                        subtitles = await find_subtitles_for_video(entry.filename, request=request, api_key=api_key, cached_messages=tg_results_flat)
                                         valid_streams.append({
                                             "name": f"▶ TG ZIP {quality_str}",
                                             "title": f"{entry.filename}\n💾 Stream ZIP entry | 📦 {format_size(entry.file_size)}",
@@ -1256,7 +1263,7 @@ async def stream_handler(
                                             continue
                                             
                                         stream_url = f"{get_addon_url(request)}/stream/zip/{chat_id}/{msg.id}/{urllib.parse.quote(entry.filename)}{query_param}"
-                                        subtitles = await find_subtitles_for_video(entry.filename, api_key=api_key, cached_messages=tg_results_flat)
+                                        subtitles = await find_subtitles_for_video(entry.filename, request=request, api_key=api_key, cached_messages=tg_results_flat)
                                         valid_streams.append({
                                             "name": f"▶ TG ZIP {quality_str}",
                                             "title": f"{entry.filename}\n💾 Stream ZIP entry | 📦 {format_size(entry.file_size)}",
@@ -1273,7 +1280,7 @@ async def stream_handler(
                             if not is_video_file(file_name):
                                 continue
                             stream_url = f"{get_addon_url(request)}/stream/file/{chat_id}/{msg.id}/{urllib.parse.quote(file_name)}{query_param}"
-                            subtitles = await find_subtitles_for_video(file_name, api_key=api_key, cached_messages=tg_results_flat)
+                            subtitles = await find_subtitles_for_video(file_name, request=request, api_key=api_key, cached_messages=tg_results_flat)
                             
                             valid_streams.append({
                                 "name": f"▶ TG Play {quality_str}",
@@ -1328,7 +1335,7 @@ async def subtitles_handler(
                 media = msg.video or msg.document or msg.audio
                 video_filename = getattr(media, "file_name", "") or ""
                 if video_filename:
-                    subtitles = await find_subtitles_for_video(video_filename, api_key=api_key)
+                    subtitles = await find_subtitles_for_video(video_filename, request=request, api_key=api_key)
             except Exception as e:
                 logger.error(f"Failed to resolve subtitles for direct catalog ID {id}: {e}")
                 
@@ -1354,7 +1361,7 @@ async def subtitles_handler(
 
             if video_filename:
                 logger.info(f"Resolving subtitles directly for filename: '{video_filename}'")
-                subtitles = await find_subtitles_for_video(video_filename, api_key=api_key)
+                subtitles = await find_subtitles_for_video(video_filename, request=request, api_key=api_key)
             else:
                 meta = await get_metadata_from_cinemeta(type, imdb_id)
                 movie_name = meta.get("name")
@@ -1369,7 +1376,7 @@ async def subtitles_handler(
                         break
                     
                     if video_filename:
-                        subtitles = await find_subtitles_for_video(video_filename, api_key=api_key, cached_messages=tg_results)
+                        subtitles = await find_subtitles_for_video(video_filename, request=request, api_key=api_key, cached_messages=tg_results)
         except Exception as e:
             logger.error(f"Failed to resolve subtitles for IMDb ID {id}: {e}")
             
