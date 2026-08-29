@@ -23,7 +23,8 @@ login_sessions = {}
 
 def update_env_file(updates: dict):
     """Safely updates or creates environment variables in the local .env file."""
-    env_path = "/data/data/com.termux/files/home/Telegram-stremio/.env"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.join(base_dir, ".env")
     lines = []
     if os.path.exists(env_path):
         try:
@@ -66,7 +67,8 @@ def reload_config():
     """Reloads the .env configuration and applies changes to Config."""
     try:
         from dotenv import load_dotenv
-        env_path = "/data/data/com.termux/files/home/Telegram-stremio/.env"
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        env_path = os.path.join(base_dir, ".env")
         load_dotenv(dotenv_path=env_path, override=True)
     except ImportError:
         pass

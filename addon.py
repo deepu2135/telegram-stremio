@@ -169,7 +169,8 @@ def get_manifest(api_key: str = ""):
 
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def landing(request: Request):
-    template_path = "/data/data/com.termux/files/home/Telegram-stremio/templates/dashboard.html"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(base_dir, "templates", "dashboard.html")
     try:
         with open(template_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -183,10 +184,11 @@ async def landing(request: Request):
 
 @app.api_route("/manifest.json", methods=["GET", "HEAD"])
 @app.api_route("/{api_key}/manifest.json", methods=["GET", "HEAD"])
-async def manifest_endpoint(api_key: str = ""):
-    if Config.API_KEY and api_key != Config.API_KEY:
+async def manifest_endpoint(request: Request, api_key: str = ""):
+    actual_key = api_key or request.query_params.get("api_key", "")
+    if Config.API_KEY and actual_key != Config.API_KEY:
         return JSONResponse({"detail": "Unauthorized: Invalid API Key"}, status_code=403)
-    return get_manifest(api_key)
+    return get_manifest(actual_key)
 
 @app.get("/catalog/{type}/{catalog_id}.json", dependencies=[Depends(verify_api_key)])
 @app.get("/catalog/{type}/{catalog_id}/{extra}.json", dependencies=[Depends(verify_api_key)])
