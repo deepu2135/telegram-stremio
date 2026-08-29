@@ -50,6 +50,8 @@ jobs:
           LOG_CHANNEL_ID: ${{ secrets.LOG_CHANNEL_ID }}
           TIMEZONE: ${{ secrets.TIMEZONE }}
           CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          CF_WORKER_URL: ${{ secrets.CF_WORKER_URL }}
+          CF_WORKER_SECRET: ${{ secrets.CF_WORKER_SECRET }}
           PORT: 7860
         run: |
           chmod +x run_server.sh

@@ -25,9 +25,23 @@ else
 
   export ADDON_URL="$TUNNEL_URL"
 
+  if [ -n "$CF_WORKER_URL" ]; then
+    echo "📡 Syncing live tunnel with Cloudflare Worker: $CF_WORKER_URL"
+    SECRET_KEY="${CF_WORKER_SECRET:-$API_KEY}"
+    curl -s -X POST "${CF_WORKER_URL%/}/__update_backend" \
+      -H "Authorization: Bearer $SECRET_KEY" \
+      -H "Content-Type: application/json" \
+      -d "{\"backend_url\": \"$TUNNEL_URL\"}" || true
+    echo "✔ Cloudflare Worker Gateway synced!"
+    
+    DISPLAY_URL="${CF_WORKER_URL%/}"
+  else
+    DISPLAY_URL="$TUNNEL_URL"
+  fi
+
   echo "=========================================================="
   echo " 🎉 YOUR STREMIO ADDON URL IS LIVE: "
-  echo " 🔗 $TUNNEL_URL/manifest.json"
+  echo " 🔗 $DISPLAY_URL/manifest.json"
   echo "=========================================================="
 
   if [ -n "$GITHUB_STEP_SUMMARY" ]; then
@@ -35,11 +49,11 @@ else
     echo "" >> "$GITHUB_STEP_SUMMARY"
     echo "### 🔗 Manifest URL:" >> "$GITHUB_STEP_SUMMARY"
     echo "\`\`\`text" >> "$GITHUB_STEP_SUMMARY"
-    echo "$TUNNEL_URL/manifest.json" >> "$GITHUB_STEP_SUMMARY"
+    echo "$DISPLAY_URL/manifest.json" >> "$GITHUB_STEP_SUMMARY"
     echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
     echo "" >> "$GITHUB_STEP_SUMMARY"
     echo "### 📱 How to Install in Stremio:" >> "$GITHUB_STEP_SUMMARY"
-    echo "1. Copy the Manifest URL: \`$TUNNEL_URL/manifest.json\`" >> "$GITHUB_STEP_SUMMARY"
+    echo "1. Copy the Manifest URL: \`$DISPLAY_URL/manifest.json\`" >> "$GITHUB_STEP_SUMMARY"
     echo "2. Open Stremio (Mobile / Desktop / Web / TV)" >> "$GITHUB_STEP_SUMMARY"
     echo "3. Go to Add-ons -> paste URL -> Install" >> "$GITHUB_STEP_SUMMARY"
   fi
