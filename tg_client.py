@@ -105,7 +105,7 @@ async def _patched_get_file(
 
         current = 0
         total = abs(limit) or (1 << 31) - 1
-        chunk_size = 512 * 1024
+        chunk_size = 1024 * 1024  # 1 MB chunk size for maximum throughput
         offset_bytes = abs(offset) * chunk_size
 
         dc_id = file_id.dc_id
@@ -115,7 +115,8 @@ async def _patched_get_file(
             self._custom_media_sessions = {}
             self._custom_sessions_lock = asyncio.Lock()
             
-        pool_size = 4
+        pool_size = 8
+        prefetch_window = 6
         
         async with self._custom_sessions_lock:
             if dc_id not in self._custom_media_sessions:
@@ -165,8 +166,8 @@ async def _patched_get_file(
             r = await fetch_chunk(offset_bytes, sessions[0])
 
             if isinstance(r, raw.types.upload.File):
-                # Start pre-fetching the next 3 chunks in parallel using different sessions
-                for idx in range(1, 4):
+                # Start pre-fetching the next chunks in parallel using different sessions
+                for idx in range(1, prefetch_window + 1):
                     chunk_offset = offset_bytes + idx * chunk_size
                     if idx >= total:
                         break
@@ -181,10 +182,10 @@ async def _patched_get_file(
                     yielded_offset = offset_bytes
                     offset_bytes += chunk_size
 
-                    # Trigger next pre-fetch (e.g. for chunk yielded_offset + 4 * chunk_size)
-                    next_prefetch_offset = yielded_offset + 4 * chunk_size
-                    if current + 3 < total:
-                        sess = sessions[(current + 3) % pool_size]
+                    # Trigger next pre-fetch ahead in pipeline
+                    next_prefetch_offset = yielded_offset + (prefetch_window + 1) * chunk_size
+                    if current + prefetch_window < total:
+                        sess = sessions[(current + prefetch_window) % pool_size]
                         prefetch_tasks[next_prefetch_offset] = asyncio.create_task(fetch_chunk(next_prefetch_offset, sess))
 
                     if progress:

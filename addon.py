@@ -1509,7 +1509,7 @@ async def tg_stream_proxy(
             
     content_length = end - start + 1
     
-    chunk_size = 512 * 1024
+    chunk_size = 1024 * 1024  # 1 MB
     offset = start // chunk_size
     skip_bytes = start % chunk_size
     
@@ -1701,7 +1701,7 @@ async def tg_split_stream_proxy(
         
     async def split_file_generator():
         bytes_sent = 0
-        block_size = 512 * 1024  # 512 KB blocks matching Pyrogram chunk size
+        block_size = 1024 * 1024  # 1 MB blocks matching Pyrogram chunk size
         
         for chunk in chunks_info:
             c_start = chunk["start_byte"]

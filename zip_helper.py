@@ -21,7 +21,7 @@ def is_video_file(filename: str) -> bool:
     return filename.lower().endswith(VIDEO_EXTENSIONS)
 
 class TelegramSeekableReader:
-    def __init__(self, client, messages: Union[Message, List[Message]], block_size=512*1024):
+    def __init__(self, client, messages: Union[Message, List[Message]], block_size=1024*1024):
         self.client = client
         self.messages = messages if isinstance(messages, list) else [messages]
         self.block_size = block_size
