@@ -1,52 +1,45 @@
-name: Host Telegram Stremio Addon
+name: Deploy Stremio
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *' # Auto-restarts every 5 hours to stay online continuously
+    - cron: "0 */5 * * *"
   push:
     branches:
       - main
-      - master
-
-concurrency:
-  group: stremio-server
-  cancel-in-progress: true
 
 jobs:
   run-addon:
-    name: Run Telegram-Stremio Server
+    name: Run Telegram Stremio Addon
     runs-on: ubuntu-latest
-    timeout-minutes: 350 # Max 5.8 hours per cycle before scheduled restart
-
+    timeout-minutes: 350
     steps:
-      - name: 📥 Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python 3.10
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: "3.10"
+          cache: "pip"
 
-      - name: 📦 Install System Dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential gcc python3-dev git curl wget
 
-      - name: 📦 Install Python Packages & Crypto
+      - name: Install Python Packages
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt tgcrypto
 
-      - name: 🌐 Install Cloudflare Tunnel (cloudflared)
+      - name: Install Cloudflared
         run: |
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared-linux-amd64.deb
-          rm cloudflared-linux-amd64.deb
-          cloudflared --version
+          rm -f cloudflared-linux-amd64.deb
 
-      - name: 🚀 Start Server & Cloudflare Tunnel
+      - name: Start Server
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
@@ -59,65 +52,5 @@ jobs:
           CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           PORT: 7860
         run: |
-          echo "=========================================================="
-          echo " Starting Telegram-Stremio Backend Server on port 7860..."
-          echo "=========================================================="
-          python3 -m uvicorn addon:app --host 127.0.0.1 --port 7860 &
-          UVICORN_PID=$!
-
-          # Wait for server to start listening
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:7860 > /dev/null 2>&1; then
-              echo "✔ FastAPI server is responsive!"
-              break
-            fi
-            sleep 1
-          done
-
-          # Expose via Cloudflare Tunnel
-          if [ -n "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
-            echo "🌐 Connecting to Cloudflare Named Tunnel (Persistent URL)..."
-            cloudflared tunnel run --token "$CLOUDFLARE_TUNNEL_TOKEN" &
-            TUNNEL_PID=$!
-            echo "### 🚀 Stremio Addon Server Active" >> $GITHUB_STEP_SUMMARY
-            echo "Running with custom Cloudflare Named Tunnel." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "🌐 Starting Quick TryCloudflare Tunnel..."
-            cloudflared tunnel --url http://127.0.0.1:7860 > /tmp/tunnel.log 2>&1 &
-            TUNNEL_PID=$!
-
-            # Poll for public tunnel URL
-            TUNNEL_URL=""
-            for i in {1..30}; do
-              TUNNEL_URL=$(grep -o 'https://[-a-zA-Z0-9@:%._\+~#=]\+\.trycloudflare\.com' /tmp/tunnel.log | head -n 1)
-              if [ -n "$TUNNEL_URL" ]; then
-                break
-              fi
-              sleep 1
-            done
-
-            echo "=========================================================="
-            echo " 🎉 YOUR STREMIO ADDON URL IS LIVE: "
-            echo " 🔗 $TUNNEL_URL/manifest.json"
-            echo "=========================================================="
-
-            # Write formatted box to GitHub Step Summary
-            cat <<SUMMARY_EOF >> $GITHUB_STEP_SUMMARY
-# 🎉 Telegram-Stremio Addon is LIVE!
-
-### 🔗 Manifest URL:
-\`\`\`text
-$TUNNEL_URL/manifest.json
-\`\`\`
-
-### 📱 How to Install in Stremio:
-1. Copy the Manifest URL above: \`$TUNNEL_URL/manifest.json\`
-2. Open **Stremio** (Mobile / Desktop / Web / Android TV)
-3. Go to **Add-ons** (puzzle icon)
-4. Paste the URL into the search/URL box and click **Install**
-5. Enjoy smooth streaming from your Telegram channels!
-SUMMARY_EOF
-          fi
-
-          # Wait for uvicorn process
-          wait $UVICORN_PID
+          chmod +x run_server.sh
+          ./run_server.sh
