@@ -1467,13 +1467,7 @@ async def tg_stream_proxy(
             chat_id_val = int(chat_id)
         except ValueError:
             chat_id_val = chat_id
-        # Always fetch a FRESH message to get a valid file_reference for streaming.
-        # Cached messages have stale file_references that cause Telegram API errors.
-        try:
-            msg = await tg_client_manager.client.get_messages(chat_id=chat_id_val, message_ids=message_id)
-        except Exception:
-            # Fallback to cached version if direct fetch fails
-            msg = await tg_client_manager.get_message(message_id, chat_id=chat_id_val)
+        msg = await tg_client_manager.get_message(message_id, chat_id=chat_id_val)
     except Exception as e:
         logger.error(f"Proxy failed to fetch message: {e}")
         raise HTTPException(status_code=404, detail="Media file not found")

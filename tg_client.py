@@ -409,19 +409,20 @@ class TelegramClientManager:
                 )
             self.is_running = True
             
-            # Resolve target channels on startup to avoid PeerIdInvalid errors
+            # Pre-cache user dialogs to populate Pyrogram's in-memory peer table
+            # This prevents PeerIdInvalid errors when streaming from channels found in global search
+            if Config.USER_SESSION_STRING:
+                try:
+                    logger.info("Pre-caching user dialogs and channel access hashes...")
+                    async for _ in self.client.get_dialogs(limit=300):
+                        pass
+                    logger.info("User dialogs cached successfully.")
+                except Exception as e:
+                    logger.warning(f"Failed to pre-cache dialogs: {e}")
+            
+            # Resolve target channels if configured
             try:
                 chat_ids = self.get_channel_ids()
-                
-                if chat_ids and Config.USER_SESSION_STRING:
-                    cached_count = 0
-                    async for dialog in self.client.get_dialogs(limit=400):
-                        if dialog.chat.id in chat_ids:
-                            logger.info(f"Resolved channel: {dialog.chat.title} ({dialog.chat.id})")
-                            cached_count += 1
-                            if cached_count >= len(chat_ids):
-                                break
-                
                 for chat_id in chat_ids:
                     try:
                         await self.client.get_chat(chat_id)
@@ -590,6 +591,15 @@ class TelegramClientManager:
         final_results.sort(key=lambda m: m.date, reverse=True)
         final_results = final_results[:limit]
         
+        # Pre-populate message cache with all discovered search results
+        for msg in final_results:
+            if msg.chat:
+                self._message_cache[f"{msg.chat.id}:{msg.id}"] = (now, msg)
+                try:
+                    self._message_cache[f"{int(msg.chat.id)}:{int(msg.id)}"] = (now, msg)
+                except Exception:
+                    pass
+        
         self._search_cache[cache_key] = (now, final_results)
         return final_results
 
@@ -615,19 +625,29 @@ class TelegramClientManager:
 
         try:
             msg = await self.client.get_messages(chat_id=target_chat, message_ids=message_id)
-            self._message_cache[cache_key] = (now, msg)
-            return msg
+            if msg:
+                self._message_cache[cache_key] = (now, msg)
+                return msg
         except Exception as e:
             err_name = type(e).__name__
             if "PeerIdInvalid" in err_name or "PEER_ID_INVALID" in str(e).upper():
                 try:
-                    logger.info(f"PeerIdInvalid for {target_chat}, attempting to resolve via get_chat...")
-                    await self.client.get_chat(target_chat)
+                    logger.info(f"PeerIdInvalid for {target_chat}, refreshing dialogs...")
+                    async for _ in self.client.get_dialogs(limit=300):
+                        pass
                     msg = await self.client.get_messages(chat_id=target_chat, message_ids=message_id)
-                    self._message_cache[cache_key] = (now, msg)
-                    return msg
+                    if msg:
+                        self._message_cache[cache_key] = (now, msg)
+                        return msg
                 except Exception as re_err:
-                    logger.error(f"Failed to resolve and fetch message after PeerIdInvalid: {re_err}")
+                    logger.error(f"Failed to resolve dialogs after PeerIdInvalid: {re_err}")
+            
+            # Check if message is in search cache
+            for k, (ctime, cached_m) in self._message_cache.items():
+                if getattr(cached_m, "id", None) == message_id:
+                    logger.info(f"Using search-cached message for {target_chat}:{message_id}")
+                    return cached_m
+                    
             logger.error(f"Failed to fetch message {message_id} in channel {target_chat}: {e}")
             raise e
 
