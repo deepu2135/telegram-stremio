@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 *.zip
+
+.env
+*.pyc
+__pycache__/
+
