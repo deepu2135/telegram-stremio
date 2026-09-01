@@ -15,6 +15,18 @@ def format_size(bytes_size: int) -> str:
         i += 1
     return f"{bytes_size:.2f} {units[i]}"
 
+def normalize_release_name(name: str) -> str:
+    """Normalize release filename for deduplication (lowercasing, removing noise/tags/brackets/extensions)."""
+    if not name:
+        return ""
+    # Strip file extension
+    s = re.sub(r'\.[a-z0-9]{2,5}$', '', name.lower())
+    # Strip common channel tag patterns like @channel, [channel], (channel), {channel}
+    s = re.sub(r'\[.*?\]|\(.*?\)|@\S+[\s:\-_|]*|\{.*?\}', ' ', s)
+    # Strip non-alphanumeric characters
+    s = re.sub(r'[^a-z0-9]', '', s)
+    return s.strip()
+
 # Normalize common numbers and terminology for reliable matching
 _NORM_MAP = {
     "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",

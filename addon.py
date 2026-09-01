@@ -31,6 +31,7 @@ from config import Config
 from tg_client import tg_client_manager
 from utils import (
     format_size,
+    normalize_release_name,
     matches_episode,
     get_metadata_from_cinemeta,
     matches_subtitle,
@@ -119,7 +120,7 @@ def group_tg_messages(messages: list) -> list:
         base, part = parse_split_info(fn)
         
         if base and part is not None:
-            key = base.lower()
+            key = (msg.chat.id, base.lower())
             if key not in grouped:
                 grouped[key] = {
                     "base_name": base,
@@ -672,6 +673,43 @@ async def catalog_handler(
 
     grouped_items.sort(key=get_item_date, reverse=True)
 
+    # Deduplicate catalog items to avoid showing duplicate files
+    deduped_items = []
+    seen_cat_uids = set()
+    seen_cat_names_sizes = set()
+    for item in grouped_items:
+        if isinstance(item, tuple):
+            base_name, parts = item
+            total_size = sum((x.video or x.document or x.audio).file_size for x in parts if (x.video or x.document or x.audio))
+            raw_sig = (base_name.strip().lower(), total_size)
+            clean_sig = (normalize_release_name(base_name), total_size)
+            if raw_sig in seen_cat_names_sizes or clean_sig in seen_cat_names_sizes:
+                continue
+            seen_cat_names_sizes.add(raw_sig)
+            seen_cat_names_sizes.add(clean_sig)
+            deduped_items.append(item)
+        else:
+            msg = item
+            media = msg.video or msg.document or msg.audio
+            if not media:
+                continue
+            uid = getattr(media, "file_unique_id", None)
+            if uid and uid in seen_cat_uids:
+                continue
+            file_name = getattr(media, "file_name", None) or msg.caption or f"Telegram File {msg.id}"
+            file_size = getattr(media, "file_size", 0)
+            raw_sig = (file_name.strip().lower(), file_size)
+            clean_sig = (normalize_release_name(file_name), file_size)
+            if raw_sig in seen_cat_names_sizes or clean_sig in seen_cat_names_sizes:
+                continue
+            if uid:
+                seen_cat_uids.add(uid)
+            seen_cat_names_sizes.add(raw_sig)
+            seen_cat_names_sizes.add(clean_sig)
+            deduped_items.append(item)
+
+    grouped_items = deduped_items
+
     # Slice for pagination (50 items per page)
     sliced_items = grouped_items[skip : skip + 50]
 
@@ -932,8 +970,9 @@ async def find_subtitles_for_video(video_filename: str, request: Request = None,
                 logger.error(f"Subtitle search failed for '{query}': {e}")
                 
     seen_msg_ids = set()
+    seen_sub_sigs = set()
     for msg in search_results:
-        if msg.id in seen_msg_ids:
+        if (msg.chat.id, msg.id) in seen_msg_ids:
             continue
             
         doc = msg.document or msg.audio or msg.video
@@ -943,7 +982,11 @@ async def find_subtitles_for_video(video_filename: str, request: Request = None,
         sub_fn = getattr(doc, "file_name", "") or ""
         if sub_fn.lower().endswith(('.srt', '.vtt', '.ass')):
             if matches_subtitle(video_filename, sub_fn):
-                seen_msg_ids.add(msg.id)
+                seen_msg_ids.add((msg.chat.id, msg.id))
+                sub_sig = (sub_fn.lower().strip(), getattr(doc, "file_size", 0))
+                if sub_sig in seen_sub_sigs:
+                    continue
+                seen_sub_sigs.add(sub_sig)
                 
                 lang = "eng"
                 sub_fn_lower = sub_fn.lower()
@@ -1205,7 +1248,11 @@ async def stream_handler(
                                             "subtitles": subtitles,
                                             "behaviorHints": {"notWebReady": True},
                                             "_quality": quality_tier(quality_str),
-                                            "_size": entry.file_size
+                                            "_size": entry.file_size,
+                                            "_score": entry_score,
+                                            "_raw_name": entry.filename,
+                                            "_clean_name": normalize_release_name(entry.filename),
+                                            "_unique_id": None
                                         })
                             except Exception as e:
                                 logger.error(f"Error checking split ZIP for IMDB: {e}")
@@ -1213,6 +1260,8 @@ async def stream_handler(
                         if not is_zip:
                             if not is_video_file(base_name):
                                 continue
+                            first_media = first_msg.video or first_msg.document or first_msg.audio
+                            first_uid = getattr(first_media, "file_unique_id", None) if first_media else None
                             stream_url = f"{get_addon_url(request)}/stream/split/{chat_id}/{msg_ids}/{urllib.parse.quote(base_name)}{query_param}"
                             valid_streams.append({
                                 "name": f"▶ TG Split {quality_str}",
@@ -1220,7 +1269,11 @@ async def stream_handler(
                                 "url": stream_url,
                                 "behaviorHints": {"notWebReady": True},
                                 "_quality": quality_tier(quality_str),
-                                "_size": total_size
+                                "_size": total_size,
+                                "_score": score,
+                                "_raw_name": base_name,
+                                "_clean_name": normalize_release_name(base_name),
+                                "_unique_id": first_uid
                             })
                     else:
                         msg = item
@@ -1243,6 +1296,7 @@ async def stream_handler(
                         file_size = media.file_size
                         chat_id = msg.chat.id
                         quality_str = parse_quality(f"{file_name} {caption}")
+                        uid = getattr(media, "file_unique_id", None)
                         
                         is_zip = False
                         if file_name.lower().endswith(".zip"):
@@ -1272,7 +1326,11 @@ async def stream_handler(
                                             "subtitles": subtitles,
                                             "behaviorHints": {"notWebReady": True},
                                             "_quality": quality_tier(quality_str),
-                                            "_size": entry.file_size
+                                            "_size": entry.file_size,
+                                            "_score": entry_score,
+                                            "_raw_name": entry.filename,
+                                            "_clean_name": normalize_release_name(entry.filename),
+                                            "_unique_id": None
                                         })
                             except Exception as e:
                                 logger.error(f"Error checking standalone ZIP for IMDB: {e}")
@@ -1290,13 +1348,57 @@ async def stream_handler(
                                 "subtitles": subtitles,
                                 "behaviorHints": {"notWebReady": True},
                                 "_quality": quality_tier(quality_str),
-                                "_size": file_size
+                                "_size": file_size,
+                                "_score": score,
+                                "_raw_name": file_name,
+                                "_clean_name": normalize_release_name(file_name),
+                                "_unique_id": uid
                             })
                             
-                valid_streams.sort(key=lambda x: (x.get("_size", 0), x.get("_quality", 0)), reverse=True)
+                valid_streams.sort(key=lambda x: (x.get("_size", 0), x.get("_quality", 0), x.get("_score", 0)), reverse=True)
+                
+                seen_unique_ids = set()
+                seen_names_and_sizes = set()
+                seen_sizes = set()
+                seen_titles = set()
+                
                 for s in valid_streams:
-                    s.pop("_quality", None)
-                    s.pop("_size", None)
+                    uid = s.pop("_unique_id", None)
+                    size = s.pop("_size", 0)
+                    quality = s.pop("_quality", None)
+                    score = s.pop("_score", 0)
+                    clean_name = s.pop("_clean_name", "")
+                    raw_name = s.pop("_raw_name", "")
+                    
+                    # 1. Deduplicate by Telegram unique file ID (forwards / shared copies)
+                    if uid and uid in seen_unique_ids:
+                        continue
+                        
+                    # 2. Deduplicate by filename and exact file size
+                    if raw_name and (raw_name, size) in seen_names_and_sizes:
+                        continue
+                    if clean_name and (clean_name, size) in seen_names_and_sizes:
+                        continue
+                        
+                    # 3. Deduplicate by file size for large media files (> 10MB) matching the same IMDb title
+                    if size > 10 * 1024 * 1024 and size in seen_sizes:
+                        continue
+                        
+                    # 4. Deduplicate identical stream display name and title
+                    stream_key = (s.get("name", ""), s.get("title", ""))
+                    if stream_key in seen_titles:
+                        continue
+                        
+                    if uid:
+                        seen_unique_ids.add(uid)
+                    if raw_name:
+                        seen_names_and_sizes.add((raw_name, size))
+                    if clean_name:
+                        seen_names_and_sizes.add((clean_name, size))
+                    if size > 10 * 1024 * 1024:
+                        seen_sizes.add(size)
+                    seen_titles.add(stream_key)
+                    
                     streams.append(s)
                     
         except Exception as e:
