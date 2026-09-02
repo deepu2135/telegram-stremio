@@ -1070,7 +1070,7 @@ async def stream_handler(
                     subtitles = await find_subtitles_for_video(zip_entry_filename, request=request, api_key=api_key)
                     
                     streams.append({
-                        "name": "▶ TG ZIP Play",
+                        "name": "▶ Telegram ZIP",
                         "title": f"{zip_entry_filename}\n💾 Stream ZIP entry | 📦 {format_size(file_size)}",
                         "url": stream_url,
                         "subtitles": subtitles,
@@ -1110,7 +1110,7 @@ async def stream_handler(
                     stream_url = f"{get_addon_url(request)}/stream/split/{chat_id}/{msg_ids}/{urllib.parse.quote(base_name)}{query_param}"
                     
                     streams.append({
-                        "name": "▶ TG Play (Split)",
+                        "name": "▶ Telegram (Split)",
                         "title": f"{base_name}\n💾 Stitch stream | 📦 {format_size(total_size)}",
                         "url": stream_url,
                         "behaviorHints": {
@@ -1138,7 +1138,7 @@ async def stream_handler(
                     subtitles = await find_subtitles_for_video(file_name, request=request, api_key=api_key)
                     
                     streams.append({
-                        "name": "▶ TG Play",
+                        "name": "▶ Telegram",
                         "title": f"{file_name}\n💾 Direct stream | 📦 {format_size(file_size)}",
                         "url": stream_url,
                         "subtitles": subtitles,
@@ -1242,7 +1242,7 @@ async def stream_handler(
                                         stream_url = f"{get_addon_url(request)}/stream/zip/{chat_id}/{msg_ids}/{urllib.parse.quote(entry.filename)}{query_param}"
                                         subtitles = await find_subtitles_for_video(entry.filename, request=request, api_key=api_key, cached_messages=tg_results_flat)
                                         valid_streams.append({
-                                            "name": f"▶ TG ZIP {quality_str}",
+                                            "name": f"▶ Telegram ZIP {quality_str}",
                                             "title": f"{entry.filename}\n💾 Stream ZIP entry | 📦 {format_size(entry.file_size)}",
                                             "url": stream_url,
                                             "subtitles": subtitles,
@@ -1264,7 +1264,7 @@ async def stream_handler(
                             first_uid = getattr(first_media, "file_unique_id", None) if first_media else None
                             stream_url = f"{get_addon_url(request)}/stream/split/{chat_id}/{msg_ids}/{urllib.parse.quote(base_name)}{query_param}"
                             valid_streams.append({
-                                "name": f"▶ TG Split {quality_str}",
+                                "name": f"▶ Telegram Split {quality_str}",
                                 "title": f"{base_name}\n💾 Stitch stream | 📦 {format_size(total_size)}",
                                 "url": stream_url,
                                 "behaviorHints": {"notWebReady": True},
@@ -1320,7 +1320,7 @@ async def stream_handler(
                                         stream_url = f"{get_addon_url(request)}/stream/zip/{chat_id}/{msg.id}/{urllib.parse.quote(entry.filename)}{query_param}"
                                         subtitles = await find_subtitles_for_video(entry.filename, request=request, api_key=api_key, cached_messages=tg_results_flat)
                                         valid_streams.append({
-                                            "name": f"▶ TG ZIP {quality_str}",
+                                            "name": f"▶ Telegram ZIP {quality_str}",
                                             "title": f"{entry.filename}\n💾 Stream ZIP entry | 📦 {format_size(entry.file_size)}",
                                             "url": stream_url,
                                             "subtitles": subtitles,
@@ -1342,7 +1342,7 @@ async def stream_handler(
                             subtitles = await find_subtitles_for_video(file_name, request=request, api_key=api_key, cached_messages=tg_results_flat)
                             
                             valid_streams.append({
-                                "name": f"▶ TG Play {quality_str}",
+                                "name": f"▶ Telegram {quality_str}",
                                 "title": f"{file_name}\n💾 Telegram File | 📦 {format_size(file_size)}",
                                 "url": stream_url,
                                 "subtitles": subtitles,
